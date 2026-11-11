@@ -53,19 +53,6 @@ const ICONS = {
     ],
     colors: { k: K, w: '#ffffff', d: '#9aa3ad' },
   },
-  heart: {
-    rows: [
-      '.kkk.kkk.',
-      'krhrkrrrk',
-      'krhrrrrrk',
-      'krrrrrrrk',
-      '.krrrrrk.',
-      '..krrrk..',
-      '...krk...',
-      '....k....',
-    ],
-    colors: { k: K, r: '#e2343c', h: '#ff9aa0' },
-  },
   flag: {
     rows: [
       'kkkkkkkkkkkkk',

@@ -4,14 +4,18 @@ import { linePx } from '../engine/draw';
 import { PointerInput } from '../engine/Input';
 import { boxHull, insideConvex, projectPx, unproject, type Vec2 } from '../engine/iso';
 import { InmateActor } from '../game/InmateActor';
-import { InmateState } from '../game/InmateState';
+import { FloorLetters } from '../game/FloorLetters';
+import { InmateState, READ_MOOD_COST } from '../game/InmateState';
 import type { Hud } from '../ui/Hud';
 import { activityFor, inCell, PROPS, type Activity } from '../world/cellMap';
 import { renderCell, type RoomImage } from '../world/CellRenderer';
 
 const TAP_MARK_TIME = 0.6;
 
-const WRITE: Activity = { ...(activityFor('stool') as Activity), writing: true, duration: 8, line: 'Dear…' };
+const WRITE: Activity = { ...(activityFor('stool') as Activity), writing: true, duration: 8, line: '' };
+/** Longest piece of a sent letter he reads aloud while writing it. */
+const LINE_MAX = 28;
+const READ_LINES = ['…', 'Hmpf.', 'Bah.', '¿Otra más?'];
 
 /**
  * The cell is drawn 1:1 in art pixels into a small buffer, which is then blown up by a whole
@@ -23,6 +27,7 @@ export class CellScene implements Scene {
   private bctx: CanvasRenderingContext2D;
   private state = new InmateState();
   private actor = new InmateActor();
+  private letters = new FloorLetters();
   /** Integer art-pixel upscale and the world -> buffer offset. */
   private k = 1;
   private dpr = 1;
@@ -51,12 +56,12 @@ export class CellScene implements Scene {
     });
 
     this.actor.onSay = (text) => hud.say(text);
-    hud.onAction((action) => {
-      this.state.apply(action);
-      this.actor.startActivity(WRITE);
+    hud.onLetterSent((text) => {
+      this.state.apply('write');
+      const opening = text.length > LINE_MAX ? `${text.slice(0, LINE_MAX).trimEnd()}…` : text;
+      this.actor.startActivity({ ...WRITE, line: opening });
       this.hud.setStats(this.state.stats);
     });
-    hud.onChat((text) => this.actor.say(text));
     hud.setStats(this.state.stats);
   }
 
@@ -77,6 +82,7 @@ export class CellScene implements Scene {
     this.time += dt;
     this.state.tick(dt / 60);
     this.actor.update(dt);
+    this.letters.update(dt);
     if (this.tapMark) {
       this.tapMark.ttl -= dt;
       if (this.tapMark.ttl <= 0) this.tapMark = null;
@@ -100,6 +106,7 @@ export class CellScene implements Scene {
     g.drawImage(this.room.image, b.x, b.y);
     const cursor = this.tapMark?.tile ?? this.hover;
     if (cursor) drawTileCursor(g, cursor.x, cursor.y);
+    this.letters.draw(g, this.time);
     this.actor.draw(g, this.time);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -124,7 +131,7 @@ export class CellScene implements Scene {
   }
 
   private interactiveAt(world: Vec2): boolean {
-    return this.actor.hitTest(world) || this.activityAt(world) !== null;
+    return this.actor.hitTest(world) || this.letters.at(world) !== null || this.activityAt(world) !== null;
   }
 
   private tap(sx: number, sy: number): void {
@@ -132,6 +139,15 @@ export class CellScene implements Scene {
     this.hud.dismissTip();
     if (this.actor.hitTest(world)) {
       this.actor.poke();
+      return;
+    }
+    const letter = this.letters.at(world);
+    if (letter) {
+      this.letters.take(letter);
+      this.state.apply('read');
+      this.hud.setStats(this.state.stats);
+      this.hud.openLetter(letter.text, READ_MOOD_COST);
+      this.actor.say(READ_LINES[Math.floor(Math.random() * READ_LINES.length)]);
       return;
     }
     const activity = this.activityAt(world);

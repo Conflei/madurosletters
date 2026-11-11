@@ -1,12 +1,12 @@
-export const GAME_TITLE = "Maduro's Letters";
-export const VERSION = '0.3.0';
+export const GAME_TITLE = 'Las cartas de Maduro';
+export const VERSION = '0.4.0';
 
 /** Short name shown on the tag above the character. */
 export const INMATE_NAME = 'Maduro';
 export const INMATE_FULL_NAME = 'Nicolás Maduro Moros';
 export const INMATE_NUMBER = '00734-506';
 export const FACILITY = 'MDC Brooklyn';
-export const FACILITY_LOCATION = 'Brooklyn, New York';
+export const FACILITY_LOCATION = 'Brooklyn, Nueva York';
 
 /** Real-world clock shown in the HUD. Custody began Jan 3, 2026 (U.S. State Department). */
 export const TIME_ZONE = 'America/New_York';

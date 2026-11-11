@@ -182,6 +182,9 @@ img {
   position: absolute;
   top: 6px;
   right: 6px;
+}
+
+.close-btn {
   width: 18px;
   height: 18px;
   border: 1px solid #000;
@@ -295,7 +298,8 @@ img {
     transform 0.2s;
 }
 
-.infostand-hidden .infostand {
+.infostand-hidden .infostand,
+.window-open .infostand {
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
@@ -382,6 +386,10 @@ img {
     background-color 0.3s;
 }
 
+.mood-label {
+  font-weight: 700;
+}
+
 .mood b {
   min-width: 20px;
   text-align: right;
@@ -397,6 +405,195 @@ img {
   50% {
     opacity: 0.5;
   }
+}
+
+/* ---------- Windows (Nitro cards) ---------- */
+
+.window {
+  pointer-events: auto;
+  position: absolute;
+  z-index: 5;
+  left: 8px;
+  right: 8px;
+  margin: 0 auto;
+  max-width: 340px;
+  border: 1px solid #000;
+  border-radius: 7px;
+  background: #e9e7df;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  color: #1b1b1b;
+  animation: window-in 0.14s ease-out;
+}
+
+.window[hidden] {
+  display: none;
+}
+
+@keyframes window-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+.window-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid #000;
+  background: #1e7295;
+  box-shadow:
+    inset 0 2px rgba(255, 255, 255, 0.25),
+    inset 0 -3px rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.window-head .close-btn {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+}
+
+.window-body {
+  padding: 10px;
+}
+
+.paper {
+  display: block;
+  width: 100%;
+  border: 1px solid #b6ab8c;
+  border-radius: 3px;
+  background-color: #fdf8e6;
+  background-image: repeating-linear-gradient(transparent 0 21px, #dcd3b8 21px 22px);
+  background-position: 0 7px;
+  box-shadow: inset 0 2px rgba(0, 0, 0, 0.06);
+  color: #2b2620;
+  font: 15px/22px Ubuntu, sans-serif;
+}
+
+textarea.paper {
+  height: 140px;
+  padding: 7px 10px;
+  resize: none;
+  outline: 0;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+@media (pointer: coarse) {
+  textarea.paper {
+    font-size: 16px;
+  }
+}
+
+textarea.paper:focus {
+  border-color: #1e7295;
+}
+
+.paper-read {
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 7px 12px 8px;
+}
+
+.paper-read p + p {
+  margin-top: 0;
+}
+
+.paper-to,
+.paper-from {
+  font-style: italic;
+  color: #6b6150;
+}
+
+.paper-from {
+  text-align: right;
+}
+
+.window-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 9px;
+}
+
+.count {
+  font-size: 11px;
+  color: #777;
+  font-variant-numeric: tabular-nums;
+}
+
+.mood-cost {
+  font-weight: 700;
+  color: #c4382c;
+}
+
+.btn {
+  appearance: none;
+  min-width: 84px;
+  padding: 6px 14px 7px;
+  border: 1px solid #000;
+  border-radius: 5px;
+  background: #a3a39d;
+  box-shadow:
+    inset 0 2px rgba(255, 255, 255, 0.4),
+    inset 0 -3px rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font: 700 13px Ubuntu, sans-serif;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-green {
+  background: #3b9a1f;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* The writing pad pops up from the toolbar's Escribir button, like a bubble. */
+.letter-write {
+  bottom: calc(var(--safe-bottom) + var(--toolbar-h) + 12px);
+  margin-left: 0;
+}
+
+.letter-write::before,
+.letter-write::after {
+  content: '';
+  position: absolute;
+  left: 72px;
+  border: solid transparent;
+}
+
+.letter-write::before {
+  bottom: -9px;
+  margin-left: -9px;
+  border-width: 9px 9px 0;
+  border-top-color: #000;
+}
+
+.letter-write::after {
+  bottom: -7px;
+  margin-left: -8px;
+  border-width: 8px 8px 0;
+  border-top-color: #e9e7df;
+}
+
+.letter-read {
+  bottom: calc(var(--safe-bottom) + var(--toolbar-h) + 12px);
 }
 
 /* ---------- Toolbar ---------- */
@@ -446,32 +643,6 @@ img {
 
 .tool-me img {
   height: 34px;
-}
-
-.chat-input {
-  flex: 1;
-  min-width: 0;
-  margin-left: 4px;
-  background: #fff;
-  border: 2px solid #000;
-  border-radius: 8px;
-  box-shadow: inset 0 -3px rgba(0, 0, 0, 0.12);
-}
-
-.chat-input input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  padding: 6px 10px 7px;
-  font: 16px Ubuntu, sans-serif;
-  color: #000;
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-.chat-input input::placeholder {
-  color: #8c8c8c;
 }
 
 .version {

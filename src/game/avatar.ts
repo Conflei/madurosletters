@@ -5,6 +5,7 @@
  */
 
 export type AvatarPose = 'stand' | 'walk' | 'sit' | 'write' | 'wash' | 'head';
+export type Expression = 'normal' | 'blink' | 'pain';
 
 export interface AvatarFrame {
   canvas: HTMLCanvasElement;
@@ -15,9 +16,9 @@ export interface AvatarFrame {
   top: number;
 }
 
-const W = 40;
+const W = 44;
 const H = 80;
-const OX = 20;
+const OX = 22;
 const OY = 76;
 
 const C = {
@@ -26,6 +27,7 @@ const C = {
   skinDeep: '#a86a46',
   hair: '#151416',
   hairHi: '#3a3a40',
+  grey: '#d8d8d4',
   suit: '#f07c1e',
   suitShade: '#c9600f',
   suitDeep: '#a44c08',
@@ -34,22 +36,24 @@ const C = {
   shoe: '#3b3b40',
   shoeHi: '#5c5c64',
   eye: '#1a1418',
+  mouth: '#5a1e1e',
+  sweat: '#8fd3ff',
 };
 
 type Px = (x: number, y: number, w: number, h: number, color: string) => void;
 
-function paint(px: Px, pose: AvatarPose, frame: number, blink: boolean): number {
-  if (pose === 'head') return drawHead(px, 21, true);
+function paint(px: Px, pose: AvatarPose, frame: number, face: Expression): number {
+  if (pose === 'head') return drawHead(px, 21, 'blink');
 
   const sitting = pose === 'sit' || pose === 'write';
   const step = pose === 'walk' ? frame : 0;
-  const hip = (sitting ? -12 : -20) + (step ? 1 : 0);
+  const hip = (sitting ? -12 : -19) + (step ? 1 : 0);
 
   drawFarArm(px, pose, hip, step);
   if (sitting) drawSeatedLegs(px, hip);
   else drawLegs(px, hip, step);
   drawTorso(px, hip);
-  const top = drawHead(px, hip, blink);
+  const top = drawHead(px, hip, face);
   drawNearArm(px, pose, hip, step, frame);
   return top;
 }
@@ -60,38 +64,45 @@ function drawLegs(px: Px, hip: number, step: number): void {
   const far = step === 1 ? { dx: 1, lift: 2 } : step === 2 ? { dx: -2, lift: 0 } : { dx: 0, lift: 0 };
   const leg = (x: number, l: { dx: number; lift: number }, color: string) => {
     const bottom = -3 - l.lift;
-    px(x + l.dx, hip, 5, bottom - hip, color);
+    px(x + l.dx, hip, 6, bottom - hip, color);
     px(x + l.dx, hip, 1, bottom - hip, C.suit);
-    px(x + l.dx - 1, bottom, 6, 3, C.shoe);
+    px(x + l.dx - 1, bottom, 7, 3, C.shoe);
     px(x + l.dx - 1, bottom, 3, 1, C.shoeHi);
   };
   leg(1, far, C.suitDeep);
-  leg(-6, near, C.suitShade);
+  leg(-7, near, C.suitShade);
 }
 
 /** Knees toward the viewer and slightly to the facing side; only knees and shins show. */
 function drawSeatedLegs(px: Px, hip: number): void {
-  px(-10, hip, 15, 4, C.suitShade);
-  px(-10, hip, 15, 1, C.suit);
-  for (const x of [-9, -3]) {
-    px(x, hip + 4, 5, -3 - (hip + 4), x < -5 ? C.suitShade : C.suitDeep);
-    px(x - 1, -3, 6, 3, C.shoe);
+  px(-12, hip, 18, 4, C.suitShade);
+  px(-12, hip, 18, 1, C.suit);
+  for (const x of [-11, -4]) {
+    px(x, hip + 4, 6, -3 - (hip + 4), x < -6 ? C.suitShade : C.suitDeep);
+    px(x - 1, -3, 7, 3, C.shoe);
     px(x - 1, -3, 3, 1, C.shoeHi);
   }
 }
 
+/** Wide, round-bellied torso. */
 function drawTorso(px: Px, hip: number): void {
   const top = hip - 19;
-  px(-8, top + 1, 16, 18, C.suit);
-  px(-7, top, 14, 1, C.suit);
-  px(-8, top + 1, 2, 17, C.suitLight);
-  px(4, top + 1, 4, 18, C.suitShade);
-  px(-8, hip - 1, 16, 1, C.suitShade);
-  px(-2, top + 3, 1, 15, C.suitShade);
+  px(-9, top, 18, 1, C.suit);
+  px(-10, top + 1, 20, 19, C.suit);
+  // Belly pushing out on the facing side and a little over the hips.
+  px(-11, top + 5, 1, 13, C.suit);
+  px(-12, top + 7, 1, 10, C.suitLight);
+  px(-13, top + 10, 1, 5, C.suitLight);
+  px(10, top + 6, 1, 11, C.suitShade);
+  px(-11, top + 1, 2, 16, C.suitLight);
+  px(5, top + 1, 5, 19, C.suitShade);
+  px(-9, hip, 17, 1, C.suitShade);
+  px(-10, hip - 1, 3, 1, C.suitShade);
+  px(-3, top + 3, 1, 15, C.suitShade);
   // Open collar showing the neck.
-  px(-4, top, 4, 2, C.skin);
-  px(-3, top + 2, 2, 1, C.skin);
-  px(-5, top, 1, 2, C.suitLight);
+  px(-5, top, 5, 2, C.skin);
+  px(-4, top + 2, 3, 1, C.skin);
+  px(-6, top, 1, 2, C.suitLight);
   px(0, top, 1, 2, C.suitLight);
   // Inmate number patch.
   px(1, top + 4, 5, 3, C.tag);
@@ -99,15 +110,15 @@ function drawTorso(px: Px, hip: number): void {
 }
 
 function arm(px: Px, x: number, top: number, len: number, sleeve: string, hand: string, light?: string): void {
-  px(x, top, 3, len, sleeve);
+  px(x, top, 4, len, sleeve);
   if (light) px(x, top, 1, len, light);
-  px(x, top + len, 3, 3, hand);
+  px(x, top + len, 4, 3, hand);
 }
 
 function drawFarArm(px: Px, pose: AvatarPose, hip: number, step: number): void {
   if (pose === 'wash' || pose === 'write') return;
   const swing = step === 1 ? -1 : step === 2 ? 1 : 0;
-  arm(px, 8 + swing, hip - 18, 13, C.suitDeep, C.skinShade);
+  arm(px, 9 + swing, hip - 18, 13, C.suitDeep, C.skinShade);
 }
 
 function drawNearArm(px: Px, pose: AvatarPose, hip: number, step: number, frame: number): void {
@@ -115,27 +126,27 @@ function drawNearArm(px: Px, pose: AvatarPose, hip: number, step: number, frame:
   if (pose === 'wash') {
     // Both hands out in front, scrubbing over the basin.
     const bob = frame % 2;
-    px(-11, top, 3, 6, C.suitShade);
-    px(-14, top + 5 + bob, 7, 3, C.suitShade);
-    px(-17, top + 4 + bob, 3, 3, C.skin);
-    px(4, top + 6, 4, 3, C.suitDeep);
-    px(-6, top + 7 - bob, 10, 3, C.suitShade);
-    px(-9, top + 6 - bob, 3, 3, C.skinShade);
+    px(-14, top, 4, 6, C.suitShade);
+    px(-17, top + 5 + bob, 8, 4, C.suitShade);
+    px(-20, top + 5 + bob, 3, 3, C.skin);
+    px(5, top + 6, 4, 4, C.suitDeep);
+    px(-7, top + 7 - bob, 12, 4, C.suitShade);
+    px(-10, top + 7 - bob, 3, 3, C.skinShade);
     return;
   }
   if (pose === 'write') {
     // Forearms resting forward on the desk, writing hand scribbling.
     const dx = frame % 2;
-    px(-11, top, 3, 7, C.suitShade);
-    px(-15, top + 6, 7, 3, C.suitShade);
-    px(-18, top + 6, 3, 3, C.skin);
-    px(-6, top + 8, 10, 3, C.suitShade);
-    px(-9 - dx, top + 8, 3, 3, C.skinShade);
-    px(-11 - dx, top + 7, 1, 2, '#f2c94c');
+    px(-14, top, 4, 7, C.suitShade);
+    px(-18, top + 6, 8, 4, C.suitShade);
+    px(-21, top + 6, 3, 3, C.skin);
+    px(-7, top + 8, 12, 4, C.suitShade);
+    px(-10 - dx, top + 8, 3, 3, C.skinShade);
+    px(-12 - dx, top + 7, 1, 2, '#f2c94c');
     return;
   }
   const swing = step === 1 ? 1 : step === 2 ? -1 : 0;
-  arm(px, -11 + swing, top, 13, C.suitShade, C.skin, C.suit);
+  arm(px, -16 + swing, top + 1, 12, C.suitShade, C.skin, C.suit);
 }
 
 /** Rounded rectangle: insets per corner row. */
@@ -147,61 +158,90 @@ function rounded(px: Px, x: number, y: number, w: number, h: number, insets: num
 }
 
 /** Head above the neck line `hip - 19`; returns the y of the top of the hair. */
-function drawHead(px: Px, hip: number, closed: boolean): number {
+function drawHead(px: Px, hip: number, face: Expression): number {
   const y = hip - 41;
 
-  px(-3, y + 19, 6, 3, C.skinShade);
+  // Full cheeks and a double chin.
+  rounded(px, -11, y, 22, 21, [4, 2, 1, 1], C.skin);
+  px(6, y + 4, 4, 15, C.skinShade);
+  rounded(px, -8, y + 19, 16, 3, [0, 1, 3], C.skinShade);
+  px(-6, y + 20, 10, 1, C.skin);
 
-  rounded(px, -10, y, 20, 20, [4, 2, 1, 1], C.skin);
-  px(6, y + 4, 3, 14, C.skinShade);
-  rounded(px, -8, y + 18, 16, 2, [0, 2], C.skinShade);
-
-  // Hair: full cap, fuller at the back of the head, short fringe.
-  rounded(px, -11, y - 2, 22, 9, [5, 3, 2, 1, 0], C.hair);
-  px(2, y + 6, 9, 7, C.hair);
-  px(3, y + 13, 7, 2, C.hair);
-  px(-10, y + 7, 3, 1, C.hair);
-  px(-6, y + 7, 2, 1, C.hair);
-  px(-6, y - 1, 7, 1, C.hairHi);
-  px(-8, y, 3, 1, C.hairHi);
+  // Black hair going grey: a full cap, fuller at the back, short fringe, white streaks.
+  rounded(px, -12, y - 2, 24, 9, [5, 3, 2, 1, 0], C.hair);
+  px(2, y + 6, 10, 7, C.hair);
+  px(3, y + 13, 8, 2, C.hair);
+  px(-11, y + 7, 3, 1, C.hair);
+  px(-7, y + 7, 2, 1, C.hair);
+  px(-7, y - 1, 7, 1, C.hairHi);
+  px(-9, y, 3, 1, C.hairHi);
+  px(-4, y - 1, 2, 1, C.grey);
+  px(-1, y, 1, 3, C.grey);
+  px(4, y, 1, 4, C.grey);
+  px(-8, y + 2, 3, 1, C.grey);
+  px(7, y + 3, 1, 5, C.grey);
+  px(9, y + 7, 1, 6, C.grey);
+  px(4, y + 12, 1, 3, C.grey);
 
   // Ear.
   px(4, y + 9, 3, 5, C.skin);
   px(5, y + 10, 1, 3, C.skinDeep);
 
-  // Heavy brows pulled down toward the nose.
-  px(-10, y + 8, 3, 2, C.hair);
-  px(-7, y + 9, 2, 2, C.hair);
-  px(-2, y + 9, 2, 2, C.hair);
-  px(0, y + 8, 3, 2, C.hair);
-
-  if (closed) {
-    px(-8, y + 12, 3, 1, C.eye);
-    px(-2, y + 12, 3, 1, C.eye);
+  if (face === 'pain') {
+    // Brows pinched upward, eyes squeezed shut, teeth clenched, a drop of sweat.
+    px(-10, y + 9, 3, 1, C.hair);
+    px(-7, y + 8, 2, 2, C.hair);
+    px(-2, y + 8, 2, 2, C.hair);
+    px(0, y + 9, 3, 1, C.hair);
+    px(-8, y + 11, 1, 1, C.eye);
+    px(-7, y + 12, 2, 1, C.eye);
+    px(-8, y + 13, 1, 1, C.eye);
+    px(-2, y + 12, 2, 1, C.eye);
+    px(0, y + 11, 1, 1, C.eye);
+    px(0, y + 13, 1, 1, C.eye);
+    px(-14, y + 6, 2, 2, C.sweat);
+    px(-13, y + 5, 1, 1, C.sweat);
   } else {
-    px(-8, y + 11, 2, 2, '#ffffff');
-    px(-7, y + 11, 1, 2, C.eye);
-    px(-2, y + 11, 2, 2, '#ffffff');
-    px(-1, y + 11, 1, 2, C.eye);
+    // Heavy brows pulled down toward the nose.
+    px(-10, y + 8, 3, 2, C.hair);
+    px(-7, y + 9, 2, 2, C.hair);
+    px(-2, y + 9, 2, 2, C.hair);
+    px(0, y + 8, 3, 2, C.hair);
+    if (face === 'blink') {
+      px(-8, y + 12, 3, 1, C.eye);
+      px(-2, y + 12, 3, 1, C.eye);
+    } else {
+      px(-8, y + 11, 2, 2, '#ffffff');
+      px(-7, y + 11, 1, 2, C.eye);
+      px(-2, y + 11, 2, 2, '#ffffff');
+      px(-1, y + 11, 1, 2, C.eye);
+    }
   }
   // Tired eye bags.
-  px(-8, y + 13, 2, 1, C.skinShade);
-  px(-2, y + 13, 2, 1, C.skinShade);
+  px(-8, y + 13 + (face === 'pain' ? 1 : 0), 2, 1, C.skinShade);
+  px(-2, y + 13 + (face === 'pain' ? 1 : 0), 2, 1, C.skinShade);
 
   // Nose, pointing to the facing side.
   px(-6, y + 12, 2, 3, C.skin);
   px(-6, y + 14, 3, 1, C.skinDeep);
   px(-7, y + 13, 1, 2, C.skinShade);
 
-  // Thick mustache with drooping tips.
+  // Thick mustache with drooping tips, salted with grey.
   px(-9, y + 15, 9, 1, C.hair);
   px(-10, y + 16, 11, 2, C.hair);
   px(-10, y + 18, 2, 1, C.hair);
   px(-1, y + 18, 2, 1, C.hair);
   px(-7, y + 15, 4, 1, C.hairHi);
+  px(-6, y + 16, 1, 1, C.grey);
+  px(-2, y + 17, 1, 1, C.grey);
 
-  // Downturned mouth corner under the mustache.
-  px(-7, y + 19, 5, 1, C.skinDeep);
+  if (face === 'pain') {
+    px(-7, y + 18, 5, 2, C.mouth);
+    px(-7, y + 18, 5, 1, '#ffffff');
+  } else {
+    // Downturned mouth corner under the mustache.
+    px(-7, y + 19, 5, 1, C.skinDeep);
+  }
 
   return y - 2;
 }
@@ -235,7 +275,7 @@ function outline(ctx: CanvasRenderingContext2D): void {
   ctx.putImageData(img, 0, 0);
 }
 
-function build(pose: AvatarPose, frame: number, blink: boolean): AvatarFrame {
+function build(pose: AvatarPose, frame: number, face: Expression): AvatarFrame {
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -246,7 +286,7 @@ function build(pose: AvatarPose, frame: number, blink: boolean): AvatarFrame {
     ctx.fillStyle = color;
     ctx.fillRect(OX + x, OY + y, w, h);
   };
-  const top = paint(px, pose, frame, blink);
+  const top = paint(px, pose, frame, face);
   outline(ctx);
   return { canvas, ox: OX, oy: OY, top: top - 1 };
 }
@@ -265,11 +305,11 @@ function mirror(f: AvatarFrame): AvatarFrame {
 
 const cache = new Map<string, AvatarFrame>();
 
-export function avatarFrame(pose: AvatarPose, frame = 0, facing: 1 | -1 = -1, blink = false): AvatarFrame {
-  const key = `${pose}|${frame}|${facing}|${blink}`;
+export function avatarFrame(pose: AvatarPose, frame = 0, facing: 1 | -1 = -1, face: Expression = 'normal'): AvatarFrame {
+  const key = `${pose}|${frame}|${facing}|${face}`;
   let f = cache.get(key);
   if (!f) {
-    f = facing < 0 ? build(pose, frame, blink) : mirror(avatarFrame(pose, frame, -1, blink));
+    f = facing < 0 ? build(pose, frame, face) : mirror(avatarFrame(pose, frame, -1, face));
     cache.set(key, f);
   }
   return f;

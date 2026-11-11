@@ -1,12 +1,12 @@
 {
-  "name": "Maduro's Letters",
-  "short_name": "Letters",
+  "name": "Las cartas de Maduro",
+  "short_name": "Cartas",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "portrait",
-  "background_color": "#0b0e13",
-  "theme_color": "#0b0e13",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
       "src": "icon.svg",

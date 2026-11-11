@@ -1,19 +1,19 @@
 import { CUSTODY_START, FACILITY, FACILITY_LOCATION, INMATE_FULL_NAME, INMATE_NAME, INMATE_NUMBER, TIME_ZONE, VERSION } from '../config';
 import type { Bounds } from '../engine/iso';
 import { avatarFrame } from '../game/avatar';
-import type { CareAction, Stats } from '../game/InmateState';
+import type { Stats } from '../game/InmateState';
 import { pixelIcon } from './icons';
 
 const LOW = 25;
 const DAY_MS = 86_400_000;
-const CHAT_MAX = 80;
+const LETTER_MAX = 280;
 const BUBBLE_STEP = 28;
 /** Space between the name tag and the newest bubble, room for its tail. */
 const BUBBLE_GAP = 14;
 const BUBBLE_DRIFT_EVERY = 4000;
 const BUBBLE_LIFE = 14000;
 
-const timeFormat = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: 'numeric', minute: '2-digit' });
+const timeFormat = new Intl.DateTimeFormat('es-US', { timeZone: TIME_ZONE, hour: 'numeric', minute: '2-digit' });
 const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, year: 'numeric', month: 'numeric', day: 'numeric' });
 
 /** Whole calendar days in New York between the custody date and `now`. */
@@ -77,19 +77,22 @@ export class Hud {
   private nameTag: HTMLElement;
   private chatLayer: HTMLElement;
   private notice: HTMLElement | null;
+  private writeWin: HTMLElement;
+  private writeText: HTMLTextAreaElement;
+  private writeCount: HTMLElement;
+  private sendBtn: HTMLButtonElement;
+  private readWin: HTMLElement;
   private headUrl: string;
   private bubbles: Bubble[] = [];
   private head = { x: 0, y: 0 };
   private lastDrift = 0;
   private shownMood = -1;
   private lastTime = '';
-  private actionHandler: ((action: CareAction) => void) | null = null;
-  private chatHandler: ((text: string) => void) | null = null;
+  private sentHandler: ((text: string) => void) | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.headUrl = spriteUrl('head');
-    const touch = matchMedia('(pointer: coarse)').matches;
 
     root.innerHTML = `
       <div class="stage" data-stage></div>
@@ -102,19 +105,19 @@ export class Hud {
       </div>
 
       <div class="purse nitro-card">
-        <div class="purse-row" title="Days in custody">
-          <span class="purse-value"><span data-days>0</span><small>days</small></span>
+        <div class="purse-row" title="Días bajo custodia">
+          <span class="purse-value"><span data-days>0</span><small>días</small></span>
           ${pixelIcon('calendar', 2)}
         </div>
-        <div class="purse-row" title="Time in New York">
+        <div class="purse-row" title="Hora en Nueva York">
           <span class="purse-value"><span data-time>0:00</span><small>NYC</small></span>
           ${pixelIcon('clock', 2)}
         </div>
       </div>
 
       <div class="notice nitro-card" data-notice>
-        <p>Tap the <b>bed</b>, <b>sink</b>, <b>stool</b> or <b>toilet</b> to use them.</p>
-        <button type="button" class="notice-close" aria-label="Close">×</button>
+        <p>Toca la <b>cama</b>, el <b>lavabo</b>, el <b>banco</b> o el <b>inodoro</b> para usarlos. Las <b>cartas</b> del suelo se pueden leer.</p>
+        <button type="button" class="close-btn notice-close" aria-label="Cerrar">×</button>
       </div>
 
       <aside class="infostand nitro-card">
@@ -124,30 +127,59 @@ export class Hud {
           <div class="infostand-figure"><img src="${spriteUrl('stand')}" alt="" /></div>
           <div class="infostand-badges">
             <span class="badge" title="Venezuela">${pixelIcon('flag', 2)}</span>
-            <span class="badge" title="Inmate">${pixelIcon('bars', 2)}</span>
+            <span class="badge" title="Recluso">${pixelIcon('bars', 2)}</span>
           </div>
         </div>
         <hr />
         <p class="motto">${INMATE_NUMBER} · ${FACILITY}</p>
         <hr />
         <div class="mood" data-mood>
-          ${pixelIcon('heart', 2)}
+          <span class="mood-label">Humor</span>
           <div class="mood-bar"><i data-mood-fill></i></div>
           <b data-mood-value>0</b>
         </div>
       </aside>
 
+      <section class="window letter-write" data-write hidden>
+        <header class="window-head">
+          <span>Escribir una carta</span>
+          <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
+        </header>
+        <div class="window-body">
+          <textarea class="paper" maxlength="${LETTER_MAX}" placeholder="Querida familia…"></textarea>
+          <div class="window-actions">
+            <span class="count" data-count>0/${LETTER_MAX}</span>
+            <button type="button" class="btn btn-green" data-send disabled>Enviar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="window letter-read" data-read hidden>
+        <header class="window-head">
+          <span>Carta recibida</span>
+          <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
+        </header>
+        <div class="window-body">
+          <div class="paper paper-read">
+            <p class="paper-to">Para: ${INMATE_FULL_NAME}</p>
+            <p data-letter-text></p>
+            <p class="paper-from">— Remitente desconocido</p>
+          </div>
+          <div class="window-actions">
+            <span class="mood-cost" data-cost></span>
+            <button type="button" class="btn" data-close>Cerrar</button>
+          </div>
+        </div>
+      </section>
+
       <nav class="toolbar">
         <button type="button" class="tool tool-me" aria-label="${INMATE_NAME}">
           <img src="${this.headUrl}" alt="" />
         </button>
-        <button type="button" class="tool" data-action="write" aria-label="Write a letter">
+        <button type="button" class="tool" data-open-write aria-label="Escribir una carta">
           ${pixelIcon('envelope', 2)}
-          <span>Write</span>
+          <span>Escribir</span>
         </button>
-        <form class="chat-input" data-chat-form>
-          <input type="text" maxlength="${CHAT_MAX}" enterkeyhint="send" autocomplete="off" placeholder="${touch ? 'Tap' : 'Click'} here to chat..." />
-        </form>
         <span class="version">v${VERSION}</span>
       </nav>
     `;
@@ -161,37 +193,74 @@ export class Hud {
     this.nameTag = query(root, '[data-name]');
     this.chatLayer = query(root, '[data-chat]');
     this.notice = query(root, '[data-notice]');
+    this.writeWin = query(root, '[data-write]');
+    this.writeText = query<HTMLTextAreaElement>(this.writeWin, 'textarea');
+    this.writeCount = query(this.writeWin, '[data-count]');
+    this.sendBtn = query<HTMLButtonElement>(this.writeWin, '[data-send]');
+    this.readWin = query(root, '[data-read]');
 
     query(root, '.notice-close').addEventListener('click', () => this.dismissTip());
     query(root, '.tool-me').addEventListener('click', () => root.classList.toggle('infostand-hidden'));
-    root.querySelectorAll<HTMLButtonElement>('button[data-action]').forEach((btn) => {
-      btn.addEventListener('click', () => this.actionHandler?.(btn.dataset.action as CareAction));
+    query(root, '[data-open-write]').addEventListener('click', () => {
+      if (this.writeWin.hidden) this.openWrite();
+      else this.closeWindow(this.writeWin);
     });
+    for (const win of [this.writeWin, this.readWin]) {
+      win.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => this.closeWindow(win)));
+    }
 
-    const form = query<HTMLFormElement>(root, '[data-chat-form]');
-    const input = query<HTMLInputElement>(form, 'input');
-    const send = () => {
-      const text = input.value.trim().slice(0, CHAT_MAX);
-      input.value = '';
-      if (text) this.chatHandler?.(text);
-      if (touch) input.blur();
-    };
-    form.addEventListener('submit', (e) => e.preventDefault());
-    input.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' || e.isComposing) return;
-      e.preventDefault();
-      send();
+    this.writeText.addEventListener('input', () => {
+      const n = this.writeText.value.length;
+      this.writeCount.textContent = `${n}/${LETTER_MAX}`;
+      this.sendBtn.disabled = this.writeText.value.trim().length === 0;
+    });
+    this.sendBtn.addEventListener('click', () => {
+      const text = this.writeText.value.trim();
+      if (!text) return;
+      this.closeWindow(this.writeWin);
+      this.sentHandler?.(text);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      this.closeWindow(this.writeWin);
+      this.closeWindow(this.readWin);
     });
 
     this.updateClock(new Date());
   }
 
-  onAction(handler: (action: CareAction) => void): void {
-    this.actionHandler = handler;
+  /** Called with the letter's text when the player sends one. */
+  onLetterSent(handler: (text: string) => void): void {
+    this.sentHandler = handler;
   }
 
-  onChat(handler: (text: string) => void): void {
-    this.chatHandler = handler;
+  /** Shows a letter picked up from the floor and how much humour it cost. */
+  openLetter(text: string, moodCost: number): void {
+    this.closeWindow(this.writeWin);
+    query(this.readWin, '[data-letter-text]').textContent = text;
+    query(this.readWin, '[data-cost]').textContent = `Humor −${moodCost}`;
+    this.showWindow(this.readWin);
+  }
+
+  private openWrite(): void {
+    this.closeWindow(this.readWin);
+    this.writeText.value = '';
+    this.writeText.dispatchEvent(new Event('input'));
+    this.showWindow(this.writeWin);
+    this.writeText.focus();
+  }
+
+  private showWindow(win: HTMLElement): void {
+    this.dismissTip();
+    win.hidden = false;
+    this.root.classList.add('window-open');
+  }
+
+  private closeWindow(win: HTMLElement): void {
+    if (win.hidden) return;
+    win.hidden = true;
+    if (win === this.writeWin) this.writeText.blur();
+    if (this.writeWin.hidden && this.readWin.hidden) this.root.classList.remove('window-open');
   }
 
   /** Screen rectangle (relative to the HUD root) the room is centred and fitted into. */

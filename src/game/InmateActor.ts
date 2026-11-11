@@ -6,6 +6,7 @@ import { avatarFrame, type AvatarPose } from './avatar';
 
 const SPEED = 0.9;
 const HOP_TIME = 0.4;
+const PAIN_TIME = 0.9;
 const WALK_FPS = 8;
 const WALK_CYCLE = [1, 0, 2, 0];
 const MATTRESS_Z = 21;
@@ -36,6 +37,7 @@ export class InmateActor {
   private facing: 1 | -1 = -1;
   private walkClock = 0;
   private hopT = 0;
+  private painT = 0;
   private blinkIn = 3;
   private hitBox: Box | null = null;
 
@@ -49,6 +51,7 @@ export class InmateActor {
 
   update(dt: number): void {
     this.hopT = Math.max(0, this.hopT - dt);
+    this.painT = Math.max(0, this.painT - dt);
     this.blinkIn -= dt;
     if (this.blinkIn < -0.15) this.blinkIn = 2 + Math.random() * 4;
 
@@ -87,8 +90,9 @@ export class InmateActor {
   }
 
   poke(): void {
+    if (this.pose === 'sleep') return;
     if (this.pose === 'stand') this.hopT = HOP_TIME;
-    this.say('♥');
+    this.painT = PAIN_TIME;
   }
 
   say(text: string): void {
@@ -151,7 +155,8 @@ export class InmateActor {
     const f = projectPx(this.pos.x, this.pos.y);
     const hop = this.hopT > 0 ? Math.round(Math.sin((this.hopT / HOP_TIME) * Math.PI) * 8) : 0;
     const { pose, frame } = this.spritePose(time);
-    const sprite = avatarFrame(pose, frame, this.facing, this.blinkIn < 0);
+    const face = this.painT > 0 ? 'pain' : this.blinkIn < 0 ? 'blink' : 'normal';
+    const sprite = avatarFrame(pose, frame, this.facing, face);
 
     ellipsePx(ctx, f.x, f.y, 11, 4, 'rgba(0, 0, 0, 0.22)');
     ctx.drawImage(sprite.canvas, f.x - sprite.ox, f.y - sprite.oy - hop);

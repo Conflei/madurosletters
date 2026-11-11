@@ -62,7 +62,7 @@ export const ACTIVITIES: Activity[] = [
   { id: 'bed', prop: 'bunk', approach: { x: 1.3, y: 1.2 }, spot: { x: 0.52, y: 1.1 }, pose: 'sleep', facing: -1, duration: 12, line: 'Zzz…' },
   { id: 'stool', prop: 'stool', approach: { x: 1.5, y: 2.78 }, spot: { x: 1.08, y: 2.78 }, pose: 'sit', facing: -1, duration: 8, line: '…' },
   { id: 'toilet', prop: 'toilet', approach: { x: 1.05, y: 3.8 }, spot: { x: 0.44, y: 3.8 }, pose: 'sit', facing: 1, duration: 6, line: 'Hmph.' },
-  { id: 'sink', prop: 'sink', approach: { x: 1.15, y: 4.52 }, spot: { x: 0.8, y: 4.52 }, pose: 'wash', facing: -1, duration: 4, line: 'Splash!' },
+  { id: 'sink', prop: 'sink', approach: { x: 1.15, y: 4.52 }, spot: { x: 0.8, y: 4.52 }, pose: 'wash', facing: -1, duration: 4, line: '¡Qué fría!' },
 ];
 
 export const activityFor = (kind: PropKind): Activity | undefined => ACTIVITIES.find((a) => a.prop === kind);

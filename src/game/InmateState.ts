@@ -1,5 +1,5 @@
 export type StatKey = 'mood';
-export type CareAction = 'write';
+export type CareAction = 'write' | 'read';
 
 export type Stats = Record<StatKey, number>;
 
@@ -8,7 +8,10 @@ const DECAY: Stats = { mood: 0.5 };
 
 const EFFECTS: Record<CareAction, Partial<Stats>> = {
   write: { mood: 25 },
+  read: { mood: -12 },
 };
+
+export const READ_MOOD_COST = -(EFFECTS.read.mood ?? 0);
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
