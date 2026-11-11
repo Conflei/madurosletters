@@ -60,8 +60,10 @@ export async function topLetters(): Promise<TopLetter[]> {
   return (await request<{ letters: TopLetter[] }>('GET', '/letters/top')).letters;
 }
 
-export async function randomLetters(): Promise<RemoteLetter[]> {
-  return (await request<{ letters: RemoteLetter[] }>('GET', '/letters/random')).letters;
+/** A floor batch: this week's letters plus one of the month's best, skipping `exclude`. */
+export async function feedLetters(exclude: string[] = []): Promise<RemoteLetter[]> {
+  const query = exclude.length ? `?exclude=${exclude.join(',')}` : '';
+  return (await request<{ letters: RemoteLetter[] }>('GET', `/letters/feed${query}`)).letters;
 }
 
 function storedVotes(): Record<string, VoteValue> {

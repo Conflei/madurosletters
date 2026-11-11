@@ -53,8 +53,8 @@ interface Content {
  */
 export class FloorLetters {
   letters: FloorLetter[] = [];
-  /** Asked for more approved letters when the pool runs dry; resolves with a fresh batch. */
-  refill: (() => Promise<RemoteLetter[]>) | null = null;
+  /** Asked for more letters when the pool runs dry, passing the ids already shown this session. */
+  refill: ((exclude: string[]) => Promise<RemoteLetter[]>) | null = null;
   private pool: Content[] = [];
   private seen = new Set<string>();
   private lorem = false;
@@ -131,8 +131,12 @@ export class FloorLetters {
   private requestRefill(): void {
     if (!this.refill || this.refilling) return;
     this.refilling = true;
-    this.refill()
-      .then((remote) => this.pool.push(...this.fresh(remote)))
+    this.refill([...this.seen].slice(-60))
+      .then((remote) => {
+        // Nothing new left: let already-seen letters come round again next time.
+        if (remote.length === 0) this.seen.clear();
+        this.pool.push(...this.fresh(remote));
+      })
       .catch(() => {})
       .finally(() => (this.refilling = false));
   }

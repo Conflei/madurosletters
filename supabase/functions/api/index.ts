@@ -2,7 +2,7 @@
 //   POST /letters        { body, deviceId, elapsedMs, website }  → { ok, id? }
 //   POST /votes          { letterId, deviceId, value: 1 | -1 | 0 } → { ok }
 //   GET  /letters/top    → { letters: [{ id, body, score, upvotes, downvotes }] }
-//   GET  /letters/random → { letters: [{ id, body }] }
+//   GET  /letters/feed?exclude=id,id → { letters: [{ id, body }] }  (mixed floor batch)
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -21,8 +21,8 @@ const BODY_MAX = 280;
 const MIN_WRITE_MS = 2000;
 
 const LIMITS = {
-  lettersPerHour: 3,
-  lettersPerDay: 10,
+  lettersPerHour: 10,
+  lettersPerDay: 30,
   lettersGlobalPerDay: 2000,
   votesPerHour: 120,
 };
@@ -108,20 +108,18 @@ async function submitLetter(req: Request): Promise<Response> {
   const ipHash = await sha256(`${IP_SALT}:${clientIp(req)}`);
   const bodyHash = await sha256(normalize(body));
 
-  const [ipHour, ipDay, devHour, devDay, global, dupes] = await Promise.all([
+  const [ipHour, ipDay, global, dupes] = await Promise.all([
     countSince('letters', 'ip_hash', ipHash, HOUR),
     countSince('letters', 'ip_hash', ipHash, DAY),
-    countSince('letters', 'device_id', deviceId, HOUR),
-    countSince('letters', 'device_id', deviceId, DAY),
     countSince('letters', '', null, DAY),
     countSince('letters', 'body_hash', bodyHash, 7 * DAY),
   ]);
 
   if (global >= LIMITS.lettersGlobalPerDay) return fail(req, 503, 'La cárcel está saturada hoy. Vuelve mañana.');
-  if (ipHour >= LIMITS.lettersPerHour || devHour >= LIMITS.lettersPerHour) {
+  if (ipHour >= LIMITS.lettersPerHour) {
     return fail(req, 429, 'Has escrito muchas cartas. Espera un rato antes de enviar otra.');
   }
-  if (ipDay >= LIMITS.lettersPerDay || devDay >= LIMITS.lettersPerDay) {
+  if (ipDay >= LIMITS.lettersPerDay) {
     return fail(req, 429, 'Ya enviaste el máximo de cartas por hoy. Vuelve mañana.');
   }
   // Repeated text: accept silently without storing a second copy.
@@ -159,12 +157,15 @@ async function castVote(req: Request): Promise<Response> {
   if (!letter || (letter.status !== 'approved' && letter.status !== 'printed')) return fail(req, 404, 'Carta no encontrada.');
 
   if (value === 0) {
-    const { error } = await supabase.from('votes').delete().eq('letter_id', letterId).eq('device_id', deviceId);
+    const { error } = await supabase.from('votes').delete().eq('letter_id', letterId).eq('ip_hash', ipHash);
     if (error) throw error;
   } else {
     const { error } = await supabase
       .from('votes')
-      .upsert({ letter_id: letterId, device_id: deviceId, ip_hash: ipHash, value, created_at: new Date().toISOString() });
+      .upsert(
+        { letter_id: letterId, device_id: deviceId, ip_hash: ipHash, value, created_at: new Date().toISOString() },
+        { onConflict: 'letter_id,ip_hash' },
+      );
     if (error) throw error;
   }
   return json(req, 200, { ok: true });
@@ -176,8 +177,16 @@ async function topLetters(req: Request): Promise<Response> {
   return json(req, 200, { letters: data ?? [] });
 }
 
-async function randomLetters(req: Request): Promise<Response> {
-  const { data, error } = await supabase.rpc('random_letters', { max_results: 10 });
+/** Letters the client already has on screen this session, so a refill brings new ones. */
+const MAX_EXCLUDE = 60;
+
+async function feedLetters(req: Request): Promise<Response> {
+  const exclude = (new URL(req.url).searchParams.get('exclude') ?? '')
+    .split(',')
+    .filter((id) => UUID_RE.test(id))
+    .slice(0, MAX_EXCLUDE);
+  const ipHash = await sha256(`${IP_SALT}:${clientIp(req)}`);
+  const { data, error } = await supabase.rpc('feed_letters', { viewer_ip: ipHash, exclude_ids: exclude });
   if (error) throw error;
   return json(req, 200, { letters: data ?? [] });
 }
@@ -190,7 +199,8 @@ Deno.serve(async (req) => {
     if (req.method === 'POST' && path === '/letters') return await submitLetter(req);
     if (req.method === 'POST' && path === '/votes') return await castVote(req);
     if (req.method === 'GET' && path === '/letters/top') return await topLetters(req);
-    if (req.method === 'GET' && path === '/letters/random') return await randomLetters(req);
+    // `/letters/random` is what clients cached before the feed existed.
+    if (req.method === 'GET' && (path === '/letters/feed' || path === '/letters/random')) return await feedLetters(req);
     return fail(req, 404, 'Ruta no encontrada.');
   } catch (err) {
     console.error(err);

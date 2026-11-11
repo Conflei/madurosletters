@@ -1,4 +1,4 @@
-import { randomLetters } from '../api';
+import { feedLetters } from '../api';
 import { PAL } from '../config';
 import type { Scene } from '../core/Scene';
 import { linePx } from '../engine/draw';
@@ -61,8 +61,8 @@ export class CellScene implements Scene {
     });
     hud.setStats(this.state.stats);
 
-    this.letters.refill = randomLetters;
-    randomLetters()
+    this.letters.refill = feedLetters;
+    feedLetters()
       .then((remote) => this.letters.load(remote))
       .catch(() => this.letters.load([]));
   }
