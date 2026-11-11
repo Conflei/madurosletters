@@ -10,7 +10,7 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPAB
 });
 
 const IP_SALT = Deno.env.get('IP_SALT') ?? '';
-const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? 'https://conflei.github.io,http://localhost:5173')
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? 'https://cartasmaduro.com,http://localhost:5173')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
