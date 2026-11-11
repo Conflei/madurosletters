@@ -115,9 +115,6 @@ function share(): HTMLCanvasElement {
   ctx.font = '500 22px Ubuntu';
   ctx.fillText('Se imprimen y se envían por correo.', left, 500);
 
-  ctx.fillStyle = '#5d6571';
-  ctx.font = '500 20px Ubuntu';
-  ctx.fillText('Un juego de Felix Izarra · @fxizrr', left, 572);
   return c;
 }
 
