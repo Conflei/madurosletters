@@ -1,5 +1,5 @@
 import { CUSTODY_START, FACILITY, FACILITY_LOCATION, INMATE_FULL_NAME, INMATE_NAME, INMATE_NUMBER, TIME_ZONE, VERSION } from '../config';
-import { ApiError, myVote, submitLetter, topLetters, vote, type VoteValue } from '../api';
+import { ApiError, myVote, receivedCount, submitLetter, topLetters, vote, type VoteValue } from '../api';
 import type { Bounds } from '../engine/iso';
 import type { FloorLetter } from '../game/FloorLetters';
 import { avatarFrame } from '../game/avatar';
@@ -13,6 +13,7 @@ const INSTAGRAM = 'fxizrr';
 const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM}/`;
 
 const LETTER_MIN = 5;
+const RECEIVED_REFRESH_MS = 60_000;
 const BUBBLE_STEP = 28;
 /** Space between the name tag and the newest bubble, room for its tail. */
 const BUBBLE_GAP = 14;
@@ -76,6 +77,7 @@ export class Hud {
   private root: HTMLElement;
   private stage: HTMLElement;
   private daysEl: HTMLElement;
+  private receivedEl: HTMLElement;
   private timeEl: HTMLElement;
   private moodRow: HTMLElement;
   private moodFill: HTMLElement;
@@ -126,6 +128,10 @@ export class Hud {
         <div class="purse-row" title="Hora en Nueva York">
           <span class="purse-value"><span data-time>0:00</span><small>NYC</small></span>
           ${pixelIcon('clock', 2)}
+        </div>
+        <div class="purse-row" title="Cartas recibidas">
+          <span class="purse-value"><span data-received>…</span><small>cartas recibidas</small></span>
+          ${pixelIcon('letter', 2)}
         </div>
       </div>
 
@@ -230,6 +236,7 @@ export class Hud {
 
     this.stage = query(root, '[data-stage]');
     this.daysEl = query(root, '[data-days]');
+    this.receivedEl = query(root, '[data-received]');
     this.timeEl = query(root, '[data-time]');
     this.moodRow = query(root, '[data-mood]');
     this.moodFill = query(root, '[data-mood-fill]');
@@ -267,6 +274,8 @@ export class Hud {
       btn.addEventListener('click', () => this.toggleVote(btn.dataset.voteDir === 'up' ? 1 : -1));
     }
     this.sendBtn.addEventListener('click', () => void this.send());
+    this.refreshReceived();
+    setInterval(() => this.refreshReceived(), RECEIVED_REFRESH_MS);
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       for (const win of this.windows) this.closeWindow(win);
@@ -329,6 +338,12 @@ export class Hud {
     this.sendBtn.textContent = this.sending ? 'Enviando…' : 'Enviar';
   }
 
+  private refreshReceived(): void {
+    receivedCount()
+      .then((n) => (this.receivedEl.textContent = n.toLocaleString('es-ES')))
+      .catch(() => {});
+  }
+
   private async send(): Promise<void> {
     const text = this.writeText.value.trim();
     if (text.length < LETTER_MIN || this.sending) return;
@@ -338,6 +353,7 @@ export class Hud {
       await submitLetter({ body: text, website: this.honeypot.value, elapsedMs: Math.round(performance.now() - this.writeOpenedAt) });
       this.closeWindow(this.writeWin);
       this.sentHandler?.(text);
+      this.refreshReceived();
     } catch (err) {
       this.writeError.textContent = err instanceof ApiError ? err.message : 'No se pudo enviar la carta.';
       this.writeError.hidden = false;

@@ -60,6 +60,11 @@ export async function topLetters(): Promise<TopLetter[]> {
   return (await request<{ letters: TopLetter[] }>('GET', '/letters/top')).letters;
 }
 
+/** How many letters have been written to Maduro, not counting rejected ones. */
+export async function receivedCount(): Promise<number> {
+  return (await request<{ received: number }>('GET', '/stats')).received;
+}
+
 /** A floor batch: this week's letters plus one of the month's best, skipping `exclude`. */
 export async function feedLetters(exclude: string[] = []): Promise<RemoteLetter[]> {
   const query = exclude.length ? `?exclude=${exclude.join(',')}` : '';

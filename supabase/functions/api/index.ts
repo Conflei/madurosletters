@@ -2,6 +2,7 @@
 //   POST /letters        { body, deviceId, elapsedMs, website }  → { ok, id? }
 //   POST /votes          { letterId, deviceId, value: 1 | -1 | 0 } → { ok }
 //   GET  /letters/top    → { letters: [{ id, body, score, upvotes, downvotes }] }
+//   GET  /stats          → { received }  (every letter written, minus the ones rejected)
 //   GET  /letters/feed?exclude=id,id → { letters: [{ id, body }] }  (mixed floor batch)
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -191,6 +192,12 @@ async function feedLetters(req: Request): Promise<Response> {
   return json(req, 200, { letters: data ?? [] });
 }
 
+async function stats(req: Request): Promise<Response> {
+  const { count, error } = await supabase.from('letters').select('*', { count: 'exact', head: true }).neq('status', 'rejected');
+  if (error) throw error;
+  return json(req, 200, { received: count ?? 0 });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req.headers.get('origin')) });
 
@@ -198,6 +205,7 @@ Deno.serve(async (req) => {
   try {
     if (req.method === 'POST' && path === '/letters') return await submitLetter(req);
     if (req.method === 'POST' && path === '/votes') return await castVote(req);
+    if (req.method === 'GET' && path === '/stats') return await stats(req);
     if (req.method === 'GET' && path === '/letters/top') return await topLetters(req);
     // `/letters/random` is what clients cached before the feed existed.
     if (req.method === 'GET' && (path === '/letters/feed' || path === '/letters/random')) return await feedLetters(req);

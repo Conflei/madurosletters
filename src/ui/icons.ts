@@ -21,6 +21,20 @@ const ICONS = {
     ],
     colors: { k: K, w: '#ffffff', s: '#c9c3b0', r: '#d6332a' },
   },
+  letter: {
+    rows: [
+      'kkkkkkkkkkk',
+      'kwkwwwwwkwk',
+      'kwwkwwwkwwk',
+      'kwwwkwkwwwk',
+      'kwwwwrwwwwk',
+      'kwwwrrrwwwk',
+      'kwwwwwwwwwk',
+      'ksssssssssk',
+      'kkkkkkkkkkk',
+    ],
+    colors: { k: K, w: '#ffffff', s: '#c9c3b0', r: '#d6332a' },
+  },
   calendar: {
     rows: [
       '..k.....k..',
