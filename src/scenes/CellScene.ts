@@ -8,7 +8,7 @@ import { FloorLetters } from '../game/FloorLetters';
 import { InmateState, READ_MOOD_COST } from '../game/InmateState';
 import type { Hud } from '../ui/Hud';
 import { activityFor, inCell, PROPS, type Activity } from '../world/cellMap';
-import { renderCell, type RoomImage } from '../world/CellRenderer';
+import { renderCell, signAt, type RoomImage } from '../world/CellRenderer';
 
 const TAP_MARK_TIME = 0.6;
 
@@ -131,7 +131,7 @@ export class CellScene implements Scene {
   }
 
   private interactiveAt(world: Vec2): boolean {
-    return this.actor.hitTest(world) || this.letters.at(world) !== null || this.activityAt(world) !== null;
+    return this.actor.hitTest(world) || signAt(world) !== null || this.letters.at(world) !== null || this.activityAt(world) !== null;
   }
 
   private tap(sx: number, sy: number): void {
@@ -139,6 +139,15 @@ export class CellScene implements Scene {
     this.hud.dismissTip();
     if (this.actor.hitTest(world)) {
       this.actor.poke();
+      return;
+    }
+    const sign = signAt(world);
+    if (sign === 'info') {
+      this.hud.openInfo();
+      return;
+    }
+    if (sign === 'ranking') {
+      this.hud.openRanking();
       return;
     }
     const letter = this.letters.at(world);

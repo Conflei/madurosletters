@@ -7,6 +7,8 @@ import type { Vec2 } from '../engine/iso';
 export const CELL_W = 3;
 export const CELL_D = 5;
 export const CORRIDOR_D = 1;
+/** The corridor runs one tile past the cell, where its notice boards hang. */
+export const CORRIDOR_W = CELL_W + 1;
 export const DOOR_X = 1;
 
 export function inCell(x: number, y: number): boolean {

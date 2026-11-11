@@ -53,6 +53,32 @@ const ICONS = {
     ],
     colors: { k: K, w: '#ffffff', d: '#9aa3ad' },
   },
+  arrowUp: {
+    rows: [
+      '....k....',
+      '...kgk...',
+      '..kgggk..',
+      '.kgggggk.',
+      'kkkgggkkk',
+      '..kgggk..',
+      '..kgggk..',
+      '..kkkkk..',
+    ],
+    colors: { k: K, g: '#5fb52f' },
+  },
+  arrowDown: {
+    rows: [
+      '..kkkkk..',
+      '..krrrk..',
+      '..krrrk..',
+      'kkkrrrkkk',
+      '.krrrrrk.',
+      '..krrrk..',
+      '...krk...',
+      '....k....',
+    ],
+    colors: { k: K, r: '#d23c2d' },
+  },
   flag: {
     rows: [
       'kkkkkkkkkkkkk',

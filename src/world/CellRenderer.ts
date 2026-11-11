@@ -1,7 +1,7 @@
 import { BAR_H, FLOOR_T, HALF_W, PAINT_H, PAL, WALL_H, WALL_T } from '../config';
 import { boxPx, boxStyle, ellipsePx, fillPoly, linePx, planeRect, shade, tileDiamond, type BoxStyle, type Plane } from '../engine/draw';
-import { projectPx, type Bounds } from '../engine/iso';
-import { CELL_D, CELL_W, CORRIDOR_D, DOOR_X, PROPS, SEAT_Z, type Prop, type PropKind } from './cellMap';
+import { projectPx, type Bounds, type Vec2 } from '../engine/iso';
+import { CELL_D, CELL_W, CORRIDOR_D, CORRIDOR_W, DOOR_X, PROPS, SEAT_Z, type Prop, type PropKind } from './cellMap';
 
 export interface RoomImage {
   image: HTMLCanvasElement;
@@ -16,9 +16,10 @@ const sideU = (y: number) => (CELL_D - y) * HALF_W;
 export function cellBounds(): Bounds {
   const pts = [
     projectPx(-WALL_T, BACK - WALL_T, WALL_H),
-    projectPx(CELL_W, BACK - WALL_T, WALL_H),
+    projectPx(CORRIDOR_W, BACK - WALL_T, WALL_H),
     projectPx(-WALL_T, CELL_D, -FLOOR_T),
-    projectPx(CELL_W, BACK - WALL_T, -FLOOR_T),
+    projectPx(CORRIDOR_W, BACK - WALL_T, -FLOOR_T),
+    projectPx(CORRIDOR_W, 0, -FLOOR_T),
     projectPx(CELL_W, CELL_D, -FLOOR_T),
   ];
   const pad = 2;
@@ -53,15 +54,18 @@ export function renderCell(): RoomImage {
 // Floor & walls
 
 function drawFloor(ctx: CanvasRenderingContext2D): void {
-  boxPx(ctx, 0, BACK, -FLOOR_T, CELL_W, CELL_D - BACK, FLOOR_T, { top: PAL.floor, left: PAL.floorLeft, right: PAL.floorRight });
+  const slab = { top: PAL.floor, left: PAL.floorLeft, right: PAL.floorRight };
+  boxPx(ctx, 0, BACK, -FLOOR_T, CELL_W, CELL_D - BACK, FLOOR_T, slab);
+  boxPx(ctx, CELL_W, BACK, -FLOOR_T, CORRIDOR_W - CELL_W, -BACK, FLOOR_T, slab);
 
+  const rowW = (y: number) => (y < 0 ? CORRIDOR_W : CELL_W);
   for (let y = BACK; y < CELL_D; y++) {
-    for (let x = 0; x < CELL_W; x++) {
+    for (let x = 0; x < rowW(y); x++) {
       fillPoly(ctx, tileDiamond(x, y), y < 0 ? PAL.corridorFloor : PAL.floor);
     }
   }
   for (let y = BACK; y < CELL_D; y++) {
-    for (let x = 0; x < CELL_W; x++) {
+    for (let x = 0; x < rowW(y); x++) {
       const grid = y < 0 ? PAL.corridorGrid : PAL.floorGrid;
       linePx(ctx, projectPx(x, y), projectPx(x + 1, y), grid);
       linePx(ctx, projectPx(x, y), projectPx(x, y + 1), grid);
@@ -81,7 +85,7 @@ function drawWallBoxes(ctx: CanvasRenderingContext2D): void {
   const cap = { top: PAL.wallCap, left: PAL.wallEnd, right: PAL.wallEnd };
   // Side wall first so the corridor wall caps the shared corner.
   boxPx(ctx, -t, BACK - t, -FLOOR_T, t, CELL_D - BACK + t, h, cap);
-  boxPx(ctx, 0, BACK - t, -FLOOR_T, CELL_W, t, h, cap);
+  boxPx(ctx, 0, BACK - t, -FLOOR_T, CORRIDOR_W, t, h, cap);
 }
 
 interface WallColors {
@@ -105,19 +109,83 @@ const wallColors = (dark: number): WallColors => ({
 
 function drawWallFaces(ctx: CanvasRenderingContext2D): void {
   const side: Plane = { ...projectPx(0, CELL_D, WALL_H), slope: -1 };
-  const back: Plane = { ...projectPx(0, BACK, WALL_H), slope: 1 };
+  const back = backPlane();
 
   paintWall(ctx, side, 0, sideU(0), wallColors(0));
   paintWall(ctx, side, sideU(0), sideU(BACK), wallColors(-0.34));
-  paintWall(ctx, back, 0, CELL_W * HALF_W, wallColors(-0.42));
+  paintWall(ctx, back, 0, CORRIDOR_W * HALF_W, wallColors(-0.42));
 
   drawWallLamp(ctx, back, (CELL_W * HALF_W) / 2, true);
+  drawInfoSign(ctx, back, SIGNS[0]);
+  drawRankingSign(ctx, back, SIGNS[1]);
 
   drawWindow(ctx, side, sideU(1.1) - 14, 18);
   drawWallLamp(ctx, side, sideU(2.75), false);
   drawPhotos(ctx, side, sideU(2.75), 36);
   drawTally(ctx, side, sideU(3.95), 46);
   drawMirror(ctx, side, sideU(4.52), 40);
+}
+
+// ---------------------------------------------------------------------------
+// Corridor notice boards (tappable)
+
+export type SignId = 'info' | 'ranking';
+
+interface Sign {
+  id: SignId;
+  u0: number;
+  u1: number;
+  v0: number;
+  v1: number;
+}
+
+/** Boards on the corridor's back wall, past the pillar where the bars don't cover them. */
+const SIGNS: Sign[] = [
+  { id: 'info', u0: 72, u1: 100, v0: 38, v1: 62 },
+  { id: 'ranking', u0: 104, u1: 124, v0: 44, v1: 64 },
+];
+
+const backPlane = (): Plane => ({ ...projectPx(0, BACK, WALL_H), slope: 1 });
+
+/** Which notice board, if any, is under a world-pixel point. */
+export function signAt(world: Vec2): SignId | null {
+  const pl = backPlane();
+  const u = Math.floor(world.x - pl.x);
+  const v = world.y - pl.y - Math.floor(u / 2);
+  const pad = 3;
+  const hit = SIGNS.find((s) => u >= s.u0 - pad && u < s.u1 + pad && v >= s.v0 - pad && v < s.v1 + pad);
+  return hit ? hit.id : null;
+}
+
+function signBoard(ctx: CanvasRenderingContext2D, pl: Plane, s: Sign, face: string): void {
+  planeRect(ctx, pl, s.u0 + 1, s.u1 + 1, s.v0 + 1, s.v1 + 1, 'rgba(0, 0, 0, 0.3)');
+  planeRect(ctx, pl, s.u0, s.u1, s.v0, s.v1, '#22262c');
+  planeRect(ctx, pl, s.u0 + 1, s.u1 - 1, s.v0 + 1, s.v1 - 1, face);
+  planeRect(ctx, pl, s.u0 + 1, s.u1 - 1, s.v0 + 1, s.v0 + 2, shade(face, 0.3));
+  planeRect(ctx, pl, s.u0 + 1, s.u1 - 1, s.v1 - 2, s.v1 - 1, shade(face, -0.25));
+}
+
+/** Blue board with a big white "i". */
+function drawInfoSign(ctx: CanvasRenderingContext2D, pl: Plane, s: Sign): void {
+  signBoard(ctx, pl, s, '#1e7295');
+  const cu = (s.u0 + s.u1) / 2;
+  planeRect(ctx, pl, cu - 2, cu + 2, s.v0 + 4, s.v0 + 8, '#ffffff');
+  planeRect(ctx, pl, cu - 4, cu + 2, s.v0 + 10, s.v0 + 12, '#ffffff');
+  planeRect(ctx, pl, cu - 2, cu + 2, s.v0 + 12, s.v1 - 6, '#ffffff');
+  planeRect(ctx, pl, cu - 4, cu + 4, s.v1 - 6, s.v1 - 4, '#ffffff');
+}
+
+/** Cream board with a gold / silver / bronze podium and a star. */
+function drawRankingSign(ctx: CanvasRenderingContext2D, pl: Plane, s: Sign): void {
+  signBoard(ctx, pl, s, '#f6efd9');
+  const base = s.v1 - 4;
+  const u = s.u0 + 3;
+  planeRect(ctx, pl, u, u + 5, base - 6, base, '#aeb6bf');
+  planeRect(ctx, pl, u + 5, u + 10, base - 10, base, '#e8b923');
+  planeRect(ctx, pl, u + 10, u + 15, base - 4, base, '#c27a3a');
+  planeRect(ctx, pl, u + 5, u + 10, base - 10, base - 9, '#ffe27a');
+  planeRect(ctx, pl, u + 7, u + 8, base - 15, base - 12, '#e8b923');
+  planeRect(ctx, pl, u + 6, u + 9, base - 14, base - 13, '#e8b923');
 }
 
 /** Cinder-block wall with a painted lower band, trim and baseboard. */

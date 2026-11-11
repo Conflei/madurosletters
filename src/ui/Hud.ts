@@ -7,6 +7,15 @@ import { pixelIcon } from './icons';
 const LOW = 25;
 const DAY_MS = 86_400_000;
 const LETTER_MAX = 280;
+const INSTAGRAM = 'fxizrr';
+const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM}/`;
+
+/** Stand-in entries until weekly voting comes from the backend. */
+const RANKING_PLACEHOLDER = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor…',
+  'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut…',
+  'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore…',
+];
 const BUBBLE_STEP = 28;
 /** Space between the name tag and the newest bubble, room for its tail. */
 const BUBBLE_GAP = 14;
@@ -82,6 +91,9 @@ export class Hud {
   private writeCount: HTMLElement;
   private sendBtn: HTMLButtonElement;
   private readWin: HTMLElement;
+  private infoWin: HTMLElement;
+  private rankWin: HTMLElement;
+  private windows: HTMLElement[];
   private headUrl: string;
   private bubbles: Bubble[] = [];
   private head = { x: 0, y: 0 };
@@ -116,7 +128,7 @@ export class Hud {
       </div>
 
       <div class="notice nitro-card" data-notice>
-        <p>Toca la <b>cama</b>, el <b>lavabo</b>, el <b>banco</b> o el <b>inodoro</b> para usarlos. Las <b>cartas</b> del suelo se pueden leer.</p>
+        <p>Toca la <b>cama</b>, el <b>lavabo</b>, el <b>banco</b> o el <b>inodoro</b> para usarlos. Las <b>cartas</b> del suelo se pueden leer y los <b>carteles</b> del pasillo tienen información.</p>
         <button type="button" class="close-btn notice-close" aria-label="Cerrar">×</button>
       </div>
 
@@ -134,7 +146,7 @@ export class Hud {
         <p class="motto">${INMATE_NUMBER} · ${FACILITY}</p>
         <hr />
         <div class="mood" data-mood>
-          <span class="mood-label">Humor</span>
+          <span class="mood-label">Ánimo</span>
           <div class="mood-bar"><i data-mood-fill></i></div>
           <b data-mood-value>0</b>
         </div>
@@ -166,9 +178,44 @@ export class Hud {
             <p class="paper-from">— Remitente desconocido</p>
           </div>
           <div class="window-actions">
+            <div class="vote" data-vote>
+              <button type="button" class="vote-btn" data-vote-dir="up" aria-label="Votar a favor" aria-pressed="false">${pixelIcon('arrowUp', 2)}</button>
+              <button type="button" class="vote-btn" data-vote-dir="down" aria-label="Votar en contra" aria-pressed="false">${pixelIcon('arrowDown', 2)}</button>
+            </div>
             <span class="mood-cost" data-cost></span>
             <button type="button" class="btn" data-close>Cerrar</button>
           </div>
+        </div>
+      </section>
+
+      <section class="window window-info" data-info hidden>
+        <header class="window-head">
+          <span>Sobre esta cárcel</span>
+          <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
+        </header>
+        <div class="window-body">
+          <div class="info-text">
+            <p>Las cartas que escribas serán enviadas a <b>${INMATE_FULL_NAME}</b> en prisión.</p>
+            <p>Estas serán impresas y enviadas físicamente por el creador de esta cárcel digital, <a href="${INSTAGRAM_URL}" target="_blank" rel="noopener">@${INSTAGRAM}</a>.</p>
+            <p>Para cualquier duda o sugerencia, escríbeme a mi Instagram.</p>
+          </div>
+          <div class="window-actions">
+            <span></span>
+            <a class="btn btn-green" href="${INSTAGRAM_URL}" target="_blank" rel="noopener">Instagram</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="window window-ranking" data-ranking hidden>
+        <header class="window-head">
+          <span>Las más votadas</span>
+          <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
+        </header>
+        <div class="window-body">
+          <p class="ranking-intro">Estas son las cartas más votadas de esta semana.</p>
+          <ol class="ranking">
+            ${RANKING_PLACEHOLDER.map((text, i) => `<li><span class="medal medal-${i + 1}">${i + 1}</span><p>${text}</p></li>`).join('')}
+          </ol>
         </div>
       </section>
 
@@ -198,6 +245,9 @@ export class Hud {
     this.writeCount = query(this.writeWin, '[data-count]');
     this.sendBtn = query<HTMLButtonElement>(this.writeWin, '[data-send]');
     this.readWin = query(root, '[data-read]');
+    this.infoWin = query(root, '[data-info]');
+    this.rankWin = query(root, '[data-ranking]');
+    this.windows = [this.writeWin, this.readWin, this.infoWin, this.rankWin];
 
     query(root, '.notice-close').addEventListener('click', () => this.dismissTip());
     query(root, '.tool-me').addEventListener('click', () => root.classList.toggle('infostand-hidden'));
@@ -205,7 +255,7 @@ export class Hud {
       if (this.writeWin.hidden) this.openWrite();
       else this.closeWindow(this.writeWin);
     });
-    for (const win of [this.writeWin, this.readWin]) {
+    for (const win of this.windows) {
       win.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => this.closeWindow(win)));
     }
 
@@ -214,6 +264,14 @@ export class Hud {
       this.writeCount.textContent = `${n}/${LETTER_MAX}`;
       this.sendBtn.disabled = this.writeText.value.trim().length === 0;
     });
+    // Voting is UI only for now: the choice is shown but not sent anywhere yet.
+    const voteBtns = [...this.readWin.querySelectorAll<HTMLButtonElement>('[data-vote-dir]')];
+    for (const btn of voteBtns) {
+      btn.addEventListener('click', () => {
+        const on = btn.getAttribute('aria-pressed') !== 'true';
+        for (const b of voteBtns) b.setAttribute('aria-pressed', String(on && b === btn));
+      });
+    }
     this.sendBtn.addEventListener('click', () => {
       const text = this.writeText.value.trim();
       if (!text) return;
@@ -222,8 +280,7 @@ export class Hud {
     });
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      this.closeWindow(this.writeWin);
-      this.closeWindow(this.readWin);
+      for (const win of this.windows) this.closeWindow(win);
     });
 
     this.updateClock(new Date());
@@ -236,14 +293,21 @@ export class Hud {
 
   /** Shows a letter picked up from the floor and how much humour it cost. */
   openLetter(text: string, moodCost: number): void {
-    this.closeWindow(this.writeWin);
     query(this.readWin, '[data-letter-text]').textContent = text;
-    query(this.readWin, '[data-cost]').textContent = `Humor −${moodCost}`;
+    query(this.readWin, '[data-cost]').textContent = `Ánimo −${moodCost}`;
+    this.readWin.querySelectorAll('[data-vote-dir]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     this.showWindow(this.readWin);
   }
 
+  openInfo(): void {
+    this.showWindow(this.infoWin);
+  }
+
+  openRanking(): void {
+    this.showWindow(this.rankWin);
+  }
+
   private openWrite(): void {
-    this.closeWindow(this.readWin);
     this.writeText.value = '';
     this.writeText.dispatchEvent(new Event('input'));
     this.showWindow(this.writeWin);
@@ -252,6 +316,7 @@ export class Hud {
 
   private showWindow(win: HTMLElement): void {
     this.dismissTip();
+    for (const other of this.windows) if (other !== win) this.closeWindow(other);
     win.hidden = false;
     this.root.classList.add('window-open');
   }
@@ -260,7 +325,7 @@ export class Hud {
     if (win.hidden) return;
     win.hidden = true;
     if (win === this.writeWin) this.writeText.blur();
-    if (this.writeWin.hidden && this.readWin.hidden) this.root.classList.remove('window-open');
+    if (this.windows.every((w) => w.hidden)) this.root.classList.remove('window-open');
   }
 
   /** Screen rectangle (relative to the HUD root) the room is centred and fitted into. */

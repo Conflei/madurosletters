@@ -592,8 +592,125 @@ textarea.paper:focus {
   border-top-color: #e9e7df;
 }
 
-.letter-read {
+.letter-read,
+.window-info,
+.window-ranking {
   bottom: calc(var(--safe-bottom) + var(--toolbar-h) + 12px);
+}
+
+.vote {
+  display: flex;
+  gap: 4px;
+}
+
+.vote-btn {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border: 1px solid #000;
+  border-radius: 5px;
+  background: #cfcdc4;
+  box-shadow:
+    inset 0 2px rgba(255, 255, 255, 0.5),
+    inset 0 -3px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.vote-btn:active {
+  transform: translateY(1px);
+}
+
+.vote-btn[data-vote-dir='up'][aria-pressed='true'] {
+  background: #b6e39a;
+}
+
+.vote-btn[data-vote-dir='down'][aria-pressed='true'] {
+  background: #f2a79f;
+}
+
+.vote + .mood-cost {
+  margin-right: auto;
+  margin-left: 10px;
+}
+
+.info-text {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.info-text p + p {
+  margin-top: 8px;
+}
+
+.info-text a {
+  color: #1e7295;
+  font-weight: 700;
+}
+
+a.btn {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
+
+.ranking-intro {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.ranking {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.ranking li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #b6ab8c;
+  border-radius: 4px;
+  background: #fdf8e6;
+  font-size: 13px;
+  color: #2b2620;
+}
+
+.ranking p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medal {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #000;
+  border-radius: 50%;
+  box-shadow: inset 0 2px rgba(255, 255, 255, 0.45);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.medal-1 {
+  background: #e8b923;
+}
+
+.medal-2 {
+  background: #a4adb6;
+}
+
+.medal-3 {
+  background: #c27a3a;
 }
 
 /* ---------- Toolbar ---------- */
