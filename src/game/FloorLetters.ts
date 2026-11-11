@@ -9,6 +9,7 @@ export interface FloorLetter {
   /** Offsets the sparkle so letters don't twinkle in sync. */
   phase: number;
   text: string;
+  from: string;
 }
 
 const MAX_LETTERS = 3;
@@ -31,6 +32,9 @@ const START: Vec2[] = [
   { x: 1.75, y: 3.75 },
 ];
 const ARRIVAL_AREA = { minX: 1.3, maxX: 2.7, minY: 0.3, maxY: 0.8 };
+/** Open floor where the player's own letters are dropped. */
+const DROP_AREA = { minX: 1.4, maxX: 2.7, minY: 0.4, maxY: 4.6 };
+const UNKNOWN_SENDER = 'Remitente desconocido';
 
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 
@@ -47,6 +51,18 @@ export class FloorLetters {
     this.arriveIn = rand(...ARRIVE_EVERY);
     const a = ARRIVAL_AREA;
     this.letters.push(this.make(rand(a.minX, a.maxX), rand(a.minY, a.maxY), this.next++));
+  }
+
+  /** Drops a letter on open floor, away from the ones already lying there. */
+  add(text: string, from: string): void {
+    const a = DROP_AREA;
+    let spot = { x: rand(a.minX, a.maxX), y: rand(a.minY, a.maxY) };
+    for (let tries = 0; tries < 12; tries++) {
+      const clear = this.letters.every((l) => Math.hypot(l.x - spot.x, l.y - spot.y) > 0.5);
+      if (clear) break;
+      spot = { x: rand(a.minX, a.maxX), y: rand(a.minY, a.maxY) };
+    }
+    this.letters.push({ ...this.make(spot.x, spot.y, this.next++), text, from });
   }
 
   /** Front-most letter under a world-pixel point. */
@@ -69,7 +85,7 @@ export class FloorLetters {
   }
 
   private make(x: number, y: number, i: number): FloorLetter {
-    return { x, y, turned: i % 2 === 1, phase: Math.random() * 3, text: LOREM[i % LOREM.length] };
+    return { x, y, turned: i % 2 === 1, phase: Math.random() * 3, text: LOREM[i % LOREM.length], from: UNKNOWN_SENDER };
   }
 }
 

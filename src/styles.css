@@ -506,6 +506,11 @@ textarea.paper:focus {
   margin-top: 0;
 }
 
+[data-letter-text] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .paper-to,
 .paper-from {
   font-style: italic;

@@ -12,9 +12,6 @@ import { renderCell, signAt, type RoomImage } from '../world/CellRenderer';
 
 const TAP_MARK_TIME = 0.6;
 
-const WRITE: Activity = { ...(activityFor('stool') as Activity), writing: true, duration: 8, line: '' };
-/** Longest piece of a sent letter he reads aloud while writing it. */
-const LINE_MAX = 28;
 const READ_LINES = ['…', 'Hmpf.', 'Bah.', '¿Otra más?'];
 
 /**
@@ -58,8 +55,7 @@ export class CellScene implements Scene {
     this.actor.onSay = (text) => hud.say(text);
     hud.onLetterSent((text) => {
       this.state.apply('write');
-      const opening = text.length > LINE_MAX ? `${text.slice(0, LINE_MAX).trimEnd()}…` : text;
-      this.actor.startActivity({ ...WRITE, line: opening });
+      this.letters.add(text, 'Tú');
       this.hud.setStats(this.state.stats);
     });
     hud.setStats(this.state.stats);
@@ -155,7 +151,7 @@ export class CellScene implements Scene {
       this.letters.take(letter);
       this.state.apply('read');
       this.hud.setStats(this.state.stats);
-      this.hud.openLetter(letter.text, READ_MOOD_COST);
+      this.hud.openLetter(letter.text, letter.from, READ_MOOD_COST);
       this.actor.say(READ_LINES[Math.floor(Math.random() * READ_LINES.length)]);
       return;
     }

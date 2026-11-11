@@ -175,7 +175,7 @@ export class Hud {
           <div class="paper paper-read">
             <p class="paper-to">Para: ${INMATE_FULL_NAME}</p>
             <p data-letter-text></p>
-            <p class="paper-from">— Remitente desconocido</p>
+            <p class="paper-from" data-letter-from></p>
           </div>
           <div class="window-actions">
             <div class="vote" data-vote>
@@ -292,8 +292,9 @@ export class Hud {
   }
 
   /** Shows a letter picked up from the floor and how much humour it cost. */
-  openLetter(text: string, moodCost: number): void {
+  openLetter(text: string, from: string, moodCost: number): void {
     query(this.readWin, '[data-letter-text]').textContent = text;
+    query(this.readWin, '[data-letter-from]').textContent = `— ${from}`;
     query(this.readWin, '[data-cost]').textContent = `Ánimo −${moodCost}`;
     this.readWin.querySelectorAll('[data-vote-dir]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     this.showWindow(this.readWin);
