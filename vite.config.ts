@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 
 /** Public address of the game. Share previews, the sitemap and llms.txt all need it absolute. */
-const SITE_URL = 'https://conflei.github.io/madurosletters/';
+const SITE_URL = 'https://cartasmaduro.com/';
 
 const ROBOTS = `# Search engines and AI crawlers are welcome.
 User-agent: *
