@@ -8,6 +8,9 @@ export const INMATE_NUMBER = '00734-506';
 export const FACILITY = 'MDC Brooklyn';
 export const FACILITY_LOCATION = 'Brooklyn, Nueva York';
 
+/** Supabase Edge Function that stores letters and votes (see supabase/functions/api). */
+export const API_URL = 'https://ftqdksuxorosltvsjxyp.supabase.co/functions/v1/api';
+
 /** Real-world clock shown in the HUD. Custody began Jan 3, 2026 (U.S. State Department). */
 export const TIME_ZONE = 'America/New_York';
 export const CUSTODY_START = { year: 2026, month: 1, day: 3 };

@@ -1,4 +1,5 @@
 import { fillPoly, linePx } from '../engine/draw';
+import type { RemoteLetter } from '../api';
 import { projectPx, type Vec2 } from '../engine/iso';
 
 export interface FloorLetter {
@@ -8,6 +9,8 @@ export interface FloorLetter {
   turned: boolean;
   /** Offsets the sparkle so letters don't twinkle in sync. */
   phase: number;
+  /** Backend id; letters without one (placeholders, the player's own) can't be voted on. */
+  id?: string;
   text: string;
   from: string;
 }
@@ -38,19 +41,46 @@ const UNKNOWN_SENDER = 'Remitente desconocido';
 
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 
-/** Envelopes lying on the cell floor. Reading one removes it; more get slipped in over time. */
+interface Content {
+  id?: string;
+  text: string;
+  from: string;
+}
+
+/**
+ * Envelopes lying on the cell floor, filled with approved letters from the backend (lorem ipsum
+ * stand-ins until there are any). Reading one removes it; more get slipped in over time.
+ */
 export class FloorLetters {
-  letters: FloorLetter[] = START.map((p, i) => this.make(p.x, p.y, i));
+  letters: FloorLetter[] = [];
+  /** Asked for more approved letters when the pool runs dry; resolves with a fresh batch. */
+  refill: (() => Promise<RemoteLetter[]>) | null = null;
+  private pool: Content[] = [];
+  private seen = new Set<string>();
+  private lorem = false;
+  private refilling = false;
   private arriveIn = rand(...ARRIVE_EVERY);
-  private next = START.length;
+  private next = 0;
+
+  /** First batch from the backend; an empty or failed fetch falls back to placeholders. */
+  load(remote: RemoteLetter[]): void {
+    this.lorem = remote.length === 0;
+    this.pool = this.lorem ? [] : this.fresh(remote);
+    for (const p of START) {
+      const content = this.nextContent();
+      if (content) this.letters.push({ ...this.make(p.x, p.y), ...content });
+    }
+  }
 
   update(dt: number): void {
     if (this.letters.length >= MAX_LETTERS) return;
     this.arriveIn -= dt;
     if (this.arriveIn > 0) return;
     this.arriveIn = rand(...ARRIVE_EVERY);
+    const content = this.nextContent();
+    if (!content) return;
     const a = ARRIVAL_AREA;
-    this.letters.push(this.make(rand(a.minX, a.maxX), rand(a.minY, a.maxY), this.next++));
+    this.letters.push({ ...this.make(rand(a.minX, a.maxX), rand(a.minY, a.maxY)), ...content });
   }
 
   /** Drops a letter on open floor, away from the ones already lying there. */
@@ -62,7 +92,7 @@ export class FloorLetters {
       if (clear) break;
       spot = { x: rand(a.minX, a.maxX), y: rand(a.minY, a.maxY) };
     }
-    this.letters.push({ ...this.make(spot.x, spot.y, this.next++), text, from });
+    this.letters.push({ ...this.make(spot.x, spot.y), text, from });
   }
 
   /** Front-most letter under a world-pixel point. */
@@ -84,8 +114,31 @@ export class FloorLetters {
     for (const l of this.letters) drawEnvelope(ctx, l, time);
   }
 
-  private make(x: number, y: number, i: number): FloorLetter {
-    return { x, y, turned: i % 2 === 1, phase: Math.random() * 3, text: LOREM[i % LOREM.length], from: UNKNOWN_SENDER };
+  private nextContent(): Content | null {
+    if (this.lorem) return { text: LOREM[this.next % LOREM.length], from: UNKNOWN_SENDER };
+    const content = this.pool.shift() ?? null;
+    if (this.pool.length === 0) this.requestRefill();
+    return content;
+  }
+
+  /** Letters not yet shown this session, so the same one doesn't keep coming back. */
+  private fresh(remote: RemoteLetter[]): Content[] {
+    const out = remote.filter((r) => !this.seen.has(r.id));
+    for (const r of out) this.seen.add(r.id);
+    return out.map((r) => ({ id: r.id, text: r.body, from: UNKNOWN_SENDER }));
+  }
+
+  private requestRefill(): void {
+    if (!this.refill || this.refilling) return;
+    this.refilling = true;
+    this.refill()
+      .then((remote) => this.pool.push(...this.fresh(remote)))
+      .catch(() => {})
+      .finally(() => (this.refilling = false));
+  }
+
+  private make(x: number, y: number): Omit<FloorLetter, 'text' | 'from'> {
+    return { x, y, turned: this.next++ % 2 === 1, phase: Math.random() * 3 };
   }
 }
 

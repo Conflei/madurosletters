@@ -816,3 +816,51 @@ a.btn {
     display: flex;
   }
 }
+
+/* ---------- Letters backend states ---------- */
+
+/* Honeypot: off-screen for people, still in the form for bots that fill every field. */
+.hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.form-error {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c4382c;
+}
+
+.form-error[hidden] {
+  display: none;
+}
+
+.mood-cost.is-error {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.vote[hidden] {
+  display: none;
+}
+
+.ranking .score {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
+  color: #3b8a1f;
+}
+
+.ranking li.ranking-empty {
+  justify-content: center;
+  color: #6b6150;
+  font-style: italic;
+}
+
+.medal-4 {
+  background: #6b7480;
+}

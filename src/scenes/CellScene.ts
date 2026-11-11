@@ -1,3 +1,4 @@
+import { randomLetters } from '../api';
 import { PAL } from '../config';
 import type { Scene } from '../core/Scene';
 import { linePx } from '../engine/draw';
@@ -59,6 +60,11 @@ export class CellScene implements Scene {
       this.hud.setStats(this.state.stats);
     });
     hud.setStats(this.state.stats);
+
+    this.letters.refill = randomLetters;
+    randomLetters()
+      .then((remote) => this.letters.load(remote))
+      .catch(() => this.letters.load([]));
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -151,7 +157,7 @@ export class CellScene implements Scene {
       this.letters.take(letter);
       this.state.apply('read');
       this.hud.setStats(this.state.stats);
-      this.hud.openLetter(letter.text, letter.from, READ_MOOD_COST);
+      this.hud.openLetter(letter, READ_MOOD_COST);
       this.actor.say(READ_LINES[Math.floor(Math.random() * READ_LINES.length)]);
       return;
     }

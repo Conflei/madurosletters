@@ -1,5 +1,7 @@
 import { CUSTODY_START, FACILITY, FACILITY_LOCATION, INMATE_FULL_NAME, INMATE_NAME, INMATE_NUMBER, TIME_ZONE, VERSION } from '../config';
+import { ApiError, myVote, submitLetter, topLetters, vote, type VoteValue } from '../api';
 import type { Bounds } from '../engine/iso';
+import type { FloorLetter } from '../game/FloorLetters';
 import { avatarFrame } from '../game/avatar';
 import type { Stats } from '../game/InmateState';
 import { pixelIcon } from './icons';
@@ -10,12 +12,7 @@ const LETTER_MAX = 280;
 const INSTAGRAM = 'fxizrr';
 const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM}/`;
 
-/** Stand-in entries until weekly voting comes from the backend. */
-const RANKING_PLACEHOLDER = [
-  'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor…',
-  'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut…',
-  'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore…',
-];
+const LETTER_MIN = 5;
 const BUBBLE_STEP = 28;
 /** Space between the name tag and the newest bubble, room for its tail. */
 const BUBBLE_GAP = 14;
@@ -90,6 +87,12 @@ export class Hud {
   private writeText: HTMLTextAreaElement;
   private writeCount: HTMLElement;
   private sendBtn: HTMLButtonElement;
+  private writeError: HTMLElement;
+  private honeypot: HTMLInputElement;
+  private writeOpenedAt = 0;
+  private sending = false;
+  private reading: FloorLetter | null = null;
+  private voteBtns: HTMLButtonElement[] = [];
   private readWin: HTMLElement;
   private infoWin: HTMLElement;
   private rankWin: HTMLElement;
@@ -159,6 +162,8 @@ export class Hud {
         </header>
         <div class="window-body">
           <textarea class="paper" maxlength="${LETTER_MAX}" placeholder="Querida familia…"></textarea>
+          <label class="hp" aria-hidden="true">Sitio web <input type="text" name="website" tabindex="-1" autocomplete="off" data-hp /></label>
+          <p class="form-error" data-write-error hidden></p>
           <div class="window-actions">
             <span class="count" data-count>0/${LETTER_MAX}</span>
             <button type="button" class="btn btn-green" data-send disabled>Enviar</button>
@@ -213,9 +218,7 @@ export class Hud {
         </header>
         <div class="window-body">
           <p class="ranking-intro">Estas son las cartas más votadas de esta semana.</p>
-          <ol class="ranking">
-            ${RANKING_PLACEHOLDER.map((text, i) => `<li><span class="medal medal-${i + 1}">${i + 1}</span><p>${text}</p></li>`).join('')}
-          </ol>
+          <ol class="ranking" data-ranking-list></ol>
         </div>
       </section>
 
@@ -244,6 +247,8 @@ export class Hud {
     this.writeText = query<HTMLTextAreaElement>(this.writeWin, 'textarea');
     this.writeCount = query(this.writeWin, '[data-count]');
     this.sendBtn = query<HTMLButtonElement>(this.writeWin, '[data-send]');
+    this.writeError = query(this.writeWin, '[data-write-error]');
+    this.honeypot = query<HTMLInputElement>(this.writeWin, '[data-hp]');
     this.readWin = query(root, '[data-read]');
     this.infoWin = query(root, '[data-info]');
     this.rankWin = query(root, '[data-ranking]');
@@ -262,22 +267,14 @@ export class Hud {
     this.writeText.addEventListener('input', () => {
       const n = this.writeText.value.length;
       this.writeCount.textContent = `${n}/${LETTER_MAX}`;
-      this.sendBtn.disabled = this.writeText.value.trim().length === 0;
+      this.writeError.hidden = true;
+      this.updateSendButton();
     });
-    // Voting is UI only for now: the choice is shown but not sent anywhere yet.
-    const voteBtns = [...this.readWin.querySelectorAll<HTMLButtonElement>('[data-vote-dir]')];
-    for (const btn of voteBtns) {
-      btn.addEventListener('click', () => {
-        const on = btn.getAttribute('aria-pressed') !== 'true';
-        for (const b of voteBtns) b.setAttribute('aria-pressed', String(on && b === btn));
-      });
+    this.voteBtns = [...this.readWin.querySelectorAll<HTMLButtonElement>('[data-vote-dir]')];
+    for (const btn of this.voteBtns) {
+      btn.addEventListener('click', () => this.toggleVote(btn.dataset.voteDir === 'up' ? 1 : -1));
     }
-    this.sendBtn.addEventListener('click', () => {
-      const text = this.writeText.value.trim();
-      if (!text) return;
-      this.closeWindow(this.writeWin);
-      this.sentHandler?.(text);
-    });
+    this.sendBtn.addEventListener('click', () => void this.send());
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       for (const win of this.windows) this.closeWindow(win);
@@ -286,17 +283,19 @@ export class Hud {
     this.updateClock(new Date());
   }
 
-  /** Called with the letter's text when the player sends one. */
+  /** Called with the letter's text once the backend has accepted it. */
   onLetterSent(handler: (text: string) => void): void {
     this.sentHandler = handler;
   }
 
   /** Shows a letter picked up from the floor and how much humour it cost. */
-  openLetter(text: string, from: string, moodCost: number): void {
-    query(this.readWin, '[data-letter-text]').textContent = text;
-    query(this.readWin, '[data-letter-from]').textContent = `— ${from}`;
-    query(this.readWin, '[data-cost]').textContent = `Ánimo −${moodCost}`;
-    this.readWin.querySelectorAll('[data-vote-dir]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  openLetter(letter: FloorLetter, moodCost: number): void {
+    this.reading = letter;
+    query(this.readWin, '[data-letter-text]').textContent = letter.text;
+    query(this.readWin, '[data-letter-from]').textContent = `— ${letter.from}`;
+    this.setReadNote(`Ánimo −${moodCost}`);
+    query(this.readWin, '[data-vote]').hidden = !letter.id;
+    this.showVote(letter.id ? myVote(letter.id) : 0);
     this.showWindow(this.readWin);
   }
 
@@ -305,14 +304,85 @@ export class Hud {
   }
 
   openRanking(): void {
+    const list = query(this.rankWin, '[data-ranking-list]');
+    list.innerHTML = '<li class="ranking-empty">Cargando…</li>';
     this.showWindow(this.rankWin);
+    topLetters()
+      .then((letters) => {
+        list.innerHTML = letters.length
+          ? letters
+              .map(
+                (l, i) =>
+                  `<li><span class="medal medal-${Math.min(i + 1, 4)}">${i + 1}</span><p>${escapeHtml(l.body)}</p><b class="score">▲ ${l.score}</b></li>`,
+              )
+              .join('')
+          : '<li class="ranking-empty">Todavía no hay cartas votadas esta semana.</li>';
+      })
+      .catch((err) => {
+        list.innerHTML = `<li class="ranking-empty">${escapeHtml(err instanceof ApiError ? err.message : 'No se pudo cargar el ranking.')}</li>`;
+      });
   }
 
   private openWrite(): void {
     this.writeText.value = '';
+    this.honeypot.value = '';
     this.writeText.dispatchEvent(new Event('input'));
+    this.writeOpenedAt = performance.now();
     this.showWindow(this.writeWin);
     this.writeText.focus();
+  }
+
+  private updateSendButton(): void {
+    this.sendBtn.disabled = this.sending || this.writeText.value.trim().length < LETTER_MIN;
+    this.sendBtn.textContent = this.sending ? 'Enviando…' : 'Enviar';
+  }
+
+  private async send(): Promise<void> {
+    const text = this.writeText.value.trim();
+    if (text.length < LETTER_MIN || this.sending) return;
+    this.sending = true;
+    this.updateSendButton();
+    try {
+      await submitLetter({ body: text, website: this.honeypot.value, elapsedMs: Math.round(performance.now() - this.writeOpenedAt) });
+      this.closeWindow(this.writeWin);
+      this.sentHandler?.(text);
+    } catch (err) {
+      this.writeError.textContent = err instanceof ApiError ? err.message : 'No se pudo enviar la carta.';
+      this.writeError.hidden = false;
+    } finally {
+      this.sending = false;
+      this.updateSendButton();
+    }
+  }
+
+  private showVote(value: VoteValue): void {
+    for (const b of this.voteBtns) {
+      const dir = b.dataset.voteDir === 'up' ? 1 : -1;
+      b.setAttribute('aria-pressed', String(value === dir));
+    }
+  }
+
+  private setReadNote(text: string, error = false): void {
+    const el = query(this.readWin, '[data-cost]');
+    el.textContent = text;
+    el.classList.toggle('is-error', error);
+  }
+
+  /** Optimistic: shows the vote right away and rolls back if the backend refuses it. */
+  private async toggleVote(dir: 1 | -1): Promise<void> {
+    const letter = this.reading;
+    if (!letter?.id) return;
+    const before = myVote(letter.id);
+    const next: VoteValue = before === dir ? 0 : dir;
+    this.showVote(next);
+    try {
+      await vote(letter.id, next);
+    } catch (err) {
+      if (this.reading === letter) {
+        this.showVote(before);
+        this.setReadNote(err instanceof ApiError ? err.message : 'No se pudo votar.', true);
+      }
+    }
   }
 
   private showWindow(win: HTMLElement): void {
