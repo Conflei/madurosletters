@@ -138,7 +138,6 @@ export class CellScene implements Scene {
 
   private tap(sx: number, sy: number): void {
     const world = this.screenToWorld(sx, sy);
-    this.hud.dismissTip();
     if (this.actor.hitTest(world)) {
       this.actor.poke();
       return;

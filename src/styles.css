@@ -158,32 +158,6 @@ img {
   text-transform: uppercase;
 }
 
-.notice {
-  position: absolute;
-  top: calc(var(--safe-top) + 64px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100% - 24px);
-  padding: 8px 30px 9px 10px;
-  font-size: 12px;
-  line-height: 1.35;
-  transition:
-    opacity 0.25s,
-    transform 0.25s;
-}
-
-.notice.closing {
-  opacity: 0;
-  transform: translate(-50%, -6px);
-}
-
-.notice-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
-
 .close-btn {
   width: 18px;
   height: 18px;

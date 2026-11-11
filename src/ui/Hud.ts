@@ -82,7 +82,6 @@ export class Hud {
   private moodValue: HTMLElement;
   private nameTag: HTMLElement;
   private chatLayer: HTMLElement;
-  private notice: HTMLElement | null;
   private writeWin: HTMLElement;
   private writeText: HTMLTextAreaElement;
   private writeCount: HTMLElement;
@@ -130,11 +129,6 @@ export class Hud {
         </div>
       </div>
 
-      <div class="notice nitro-card" data-notice>
-        <p>Toca la <b>cama</b>, el <b>lavabo</b>, el <b>banco</b> o el <b>inodoro</b> para usarlos. Las <b>cartas</b> del suelo se pueden leer y los <b>carteles</b> del pasillo tienen información.</p>
-        <button type="button" class="close-btn notice-close" aria-label="Cerrar">×</button>
-      </div>
-
       <aside class="infostand nitro-card">
         <h2>${INMATE_FULL_NAME}</h2>
         <hr />
@@ -161,7 +155,7 @@ export class Hud {
           <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
         </header>
         <div class="window-body">
-          <textarea class="paper" maxlength="${LETTER_MAX}" placeholder="Querida familia…"></textarea>
+          <textarea class="paper" maxlength="${LETTER_MAX}" placeholder="Querido Maduro, quiero decirte que…"></textarea>
           <label class="hp" aria-hidden="true">Sitio web <input type="text" name="website" tabindex="-1" autocomplete="off" data-hp /></label>
           <p class="form-error" data-write-error hidden></p>
           <div class="window-actions">
@@ -242,7 +236,6 @@ export class Hud {
     this.moodValue = query(root, '[data-mood-value]');
     this.nameTag = query(root, '[data-name]');
     this.chatLayer = query(root, '[data-chat]');
-    this.notice = query(root, '[data-notice]');
     this.writeWin = query(root, '[data-write]');
     this.writeText = query<HTMLTextAreaElement>(this.writeWin, 'textarea');
     this.writeCount = query(this.writeWin, '[data-count]');
@@ -254,7 +247,6 @@ export class Hud {
     this.rankWin = query(root, '[data-ranking]');
     this.windows = [this.writeWin, this.readWin, this.infoWin, this.rankWin];
 
-    query(root, '.notice-close').addEventListener('click', () => this.dismissTip());
     query(root, '.tool-me').addEventListener('click', () => root.classList.toggle('infostand-hidden'));
     query(root, '[data-open-write]').addEventListener('click', () => {
       if (this.writeWin.hidden) this.openWrite();
@@ -386,7 +378,6 @@ export class Hud {
   }
 
   private showWindow(win: HTMLElement): void {
-    this.dismissTip();
     for (const other of this.windows) if (other !== win) this.closeWindow(other);
     win.hidden = false;
     this.root.classList.add('window-open');
@@ -404,14 +395,6 @@ export class Hud {
     const r = this.stage.getBoundingClientRect();
     const base = this.root.getBoundingClientRect();
     return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
-  }
-
-  dismissTip(): void {
-    if (!this.notice) return;
-    const el = this.notice;
-    this.notice = null;
-    el.classList.add('closing');
-    setTimeout(() => el.remove(), 250);
   }
 
   /** Called every frame with the screen position of the top of the avatar's head. */
