@@ -1,15 +1,13 @@
-import { INMATE_NAME, PAL } from '../config';
-import { boxColors, isoBox } from '../engine/draw';
-import { project, type Vec2 } from '../engine/iso';
-import { FREE_AREA, INMATE_SPOT, propOf, SEAT_Z, type Activity, type Pose } from '../world/cellMap';
+import { PAL } from '../config';
+import { boxPx, boxStyle, ellipsePx } from '../engine/draw';
+import { projectPx, type Vec2 } from '../engine/iso';
+import { FREE_AREA, INMATE_SPOT, propOf, type Activity, type Pose } from '../world/cellMap';
+import { avatarFrame, type AvatarPose } from './avatar';
 
 const SPEED = 0.9;
-const HOP_TIME = 0.45;
-const BUBBLE_TIME = 2.2;
-const NAME_SIGN_H = 14;
-/** Screen y of the torso's bottom edge, relative to the feet. */
-const STAND_BASE = -16;
-const SIT_BASE = -(SEAT_Z + 1);
+const HOP_TIME = 0.4;
+const WALK_FPS = 8;
+const WALK_CYCLE = [1, 0, 2, 0];
 const MATTRESS_Z = 21;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -27,15 +25,18 @@ interface Box {
  */
 export class InmateActor {
   pos: Vec2 = { ...INMATE_SPOT };
+  /** World pixel just above the top of his head, for the name tag and chat bubbles. */
+  headTop: Vec2 = { x: 0, y: 0 };
+  onSay: ((text: string) => void) | null = null;
+
   private path: Vec2[] = [];
   private activity: Activity | null = null;
   private activeFor = 0;
   private idle = 2.5;
   private facing: 1 | -1 = -1;
-  private stride = 0;
+  private walkClock = 0;
   private hopT = 0;
   private blinkIn = 3;
-  private bubble: { text: string; ttl: number } | null = null;
   private hitBox: Box | null = null;
 
   private get arrived(): boolean {
@@ -48,12 +49,8 @@ export class InmateActor {
 
   update(dt: number): void {
     this.hopT = Math.max(0, this.hopT - dt);
-    if (this.bubble) {
-      this.bubble.ttl -= dt;
-      if (this.bubble.ttl <= 0) this.bubble = null;
-    }
     this.blinkIn -= dt;
-    if (this.blinkIn < -0.12) this.blinkIn = 2 + Math.random() * 4;
+    if (this.blinkIn < -0.15) this.blinkIn = 2 + Math.random() * 4;
 
     if (this.path.length) {
       this.walk(dt);
@@ -95,7 +92,7 @@ export class InmateActor {
   }
 
   say(text: string): void {
-    this.bubble = { text, ttl: BUBBLE_TIME };
+    this.onSay?.(text);
   }
 
   /** `world` is a world-pixel point; the hit box covers what was drawn last frame. */
@@ -105,11 +102,8 @@ export class InmateActor {
   }
 
   draw(ctx: CanvasRenderingContext2D, time: number): void {
-    const pose = this.pose;
-    const top = pose === 'sleep' ? this.drawSleeping(ctx, time) : this.drawUpright(ctx, time, pose);
-    const signY = top.y - 6;
-    this.drawNameSign(ctx, top.x, signY);
-    if (this.bubble) this.drawBubble(ctx, top.x, signY - NAME_SIGN_H - 4, this.bubble.text, Math.min(1, this.bubble.ttl * 3));
+    if (this.pose === 'sleep') this.drawSleeping(ctx, time);
+    else this.drawUpright(ctx, time);
   }
 
   private exitPath(): Vec2[] {
@@ -125,7 +119,7 @@ export class InmateActor {
     if (dist > step) {
       this.pos.x += (dx / dist) * step;
       this.pos.y += (dy / dist) * step;
-      this.stride += dt * 9;
+      this.walkClock += dt;
       const screenDx = dx - dy;
       if (Math.abs(screenDx) > 0.01) this.facing = screenDx > 0 ? 1 : -1;
       return;
@@ -134,7 +128,7 @@ export class InmateActor {
     this.pos = { ...target };
     this.path.shift();
     if (this.path.length) return;
-    this.stride = 0;
+    this.walkClock = 0;
     if (this.activity) {
       this.activeFor = this.activity.duration;
       this.facing = this.activity.facing;
@@ -144,194 +138,60 @@ export class InmateActor {
     }
   }
 
-  /** Returns the world point at the top of the head. */
-  private drawUpright(ctx: CanvasRenderingContext2D, time: number, pose: Pose): Vec2 {
-    const f = project(this.pos.x, this.pos.y);
-    const walking = this.path.length > 0;
-    const sitting = pose === 'sit';
-    const base = sitting ? SIT_BASE : STAND_BASE;
-    const hop = this.hopT > 0 ? Math.sin((this.hopT / HOP_TIME) * Math.PI) * 10 : 0;
-    const breathe = walking ? Math.abs(Math.sin(this.stride)) * 1.5 : Math.sin(time * 2.2) * 0.7;
-    const lift = walking ? Math.sin(this.stride) * 2.5 : 0;
+  private spritePose(time: number): { pose: AvatarPose; frame: number } {
+    if (this.path.length) return { pose: 'walk', frame: WALK_CYCLE[Math.floor(this.walkClock * WALK_FPS) % WALK_CYCLE.length] };
+    const pose = this.pose;
+    if (pose === 'wash') return { pose: 'wash', frame: Math.floor(time * 6) % 2 };
+    if (pose === 'sit' && this.activity?.writing) return { pose: 'write', frame: Math.floor(time * 5) % 2 };
+    if (pose === 'sit') return { pose: 'sit', frame: 0 };
+    return { pose: 'stand', frame: 0 };
+  }
 
-    let leftArm = walking ? Math.sin(this.stride) * 2 : 0;
-    let rightArm = -leftArm;
-    if (pose === 'wash') {
-      leftArm = -4 + Math.sin(time * 14) * 2;
-      rightArm = -4 - Math.sin(time * 14) * 2;
-    } else if (sitting && this.activity?.writing) {
-      rightArm = -3 + Math.sin(time * 11);
-    }
+  private drawUpright(ctx: CanvasRenderingContext2D, time: number): void {
+    const f = projectPx(this.pos.x, this.pos.y);
+    const hop = this.hopT > 0 ? Math.round(Math.sin((this.hopT / HOP_TIME) * Math.PI) * 8) : 0;
+    const { pose, frame } = this.spritePose(time);
+    const sprite = avatarFrame(pose, frame, this.facing, this.blinkIn < 0);
 
-    ctx.save();
-    ctx.translate(f.x, f.y);
+    ellipsePx(ctx, f.x, f.y, 11, 4, 'rgba(0, 0, 0, 0.22)');
+    ctx.drawImage(sprite.canvas, f.x - sprite.ox, f.y - sprite.oy - hop);
 
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.3 - hop * 0.012})`;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 12 - hop * 0.3, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.translate(0, -hop);
-    if (sitting) {
-      // Thighs point at the viewer, so only the knees and shins show.
-      ctx.fillStyle = PAL.jumpsuitDark;
-      ctx.fillRect(-7, base - 1, 14, 5);
-      for (const x of [-6, 1]) {
-        ctx.fillStyle = PAL.jumpsuitDark;
-        ctx.fillRect(x, base + 4, 5, -base - 3);
-        ctx.fillStyle = PAL.shoe;
-        ctx.fillRect(x - 0.5, -2, 6, 3);
-      }
-    } else {
-      const leg = (x: number, l: number) => {
-        ctx.fillStyle = PAL.jumpsuitDark;
-        ctx.fillRect(x, base - 2 - l, 5, 16);
-        ctx.fillStyle = PAL.shoe;
-        ctx.fillRect(x - 0.5, -3 - l, 6, 3);
-      };
-      leg(-6, Math.max(0, lift));
-      leg(1, Math.max(0, -lift));
-    }
-
-    ctx.translate(0, -breathe);
-    const arm = (x: number, s: number) => {
-      ctx.fillStyle = PAL.jumpsuitDark;
-      ctx.fillRect(x, base - 22 + s, 4, 15);
-      ctx.fillStyle = PAL.skin;
-      ctx.fillRect(x, base - 8 + s, 4, 4);
-    };
-    arm(-12.5, leftArm);
-    arm(8.5, rightArm);
-
-    ctx.fillStyle = PAL.jumpsuit;
-    ctx.beginPath();
-    ctx.roundRect(-9, base - 24, 18, 24, 4);
-    ctx.fill();
-    ctx.fillStyle = PAL.jumpsuitDark;
-    ctx.fillRect(-0.5, base - 20, 1, 18);
-    ctx.fillStyle = '#f5f5f0';
-    ctx.fillRect(2.5, base - 19, 5, 3);
-
-    this.drawHead(ctx, base - 25, false);
-    ctx.restore();
-
-    const top = { x: f.x, y: f.y - hop - breathe + base - 46 };
-    this.hitBox = { x0: f.x - 14, x1: f.x + 14, y0: top.y, y1: f.y + 4 };
-    return top;
+    const top = f.y - hop + sprite.top;
+    this.headTop = { x: f.x, y: top };
+    this.hitBox = { x0: f.x - 13, x1: f.x + 13, y0: top, y1: f.y + 4 };
   }
 
   /** Lying on the lower bunk: head on the pillow, body under the blanket. */
-  private drawSleeping(ctx: CanvasRenderingContext2D, time: number): Vec2 {
+  private drawSleeping(ctx: CanvasRenderingContext2D, time: number): void {
     const b = propOf('bunk');
-    const head = project(b.x + b.w / 2, b.y + 0.32, MATTRESS_Z);
-    const neckY = head.y + 4;
+    const chin = projectPx(b.x + b.w / 2, b.y + 0.34, MATTRESS_Z);
+    const head = avatarFrame('head', 0, -1);
+    ctx.drawImage(head.canvas, chin.x - head.ox, chin.y + 3 - head.oy);
 
-    ctx.save();
-    ctx.translate(head.x, neckY);
-    this.drawHead(ctx, 0, true);
-    ctx.restore();
+    boxPx(ctx, b.x + 0.14, b.y + 0.58, MATTRESS_Z, b.w - 0.28, 1.05, 5, boxStyle(PAL.blanket));
+    boxPx(ctx, b.x + 0.12, b.y + 1.1, MATTRESS_Z, b.w - 0.24, 0.6, 6, boxStyle(PAL.blanket));
 
-    isoBox(ctx, b.x + 0.14, b.y + 0.5, MATTRESS_Z, b.w - 0.28, 1.15, 6, boxColors(PAL.jumpsuit));
-    isoBox(ctx, b.x + 0.1, b.y + 1.05, MATTRESS_Z, b.w - 0.2, 0.65, 7.5, boxColors(PAL.blanket));
-
-    ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
     for (let i = 0; i < 3; i++) {
-      const phase = (time * 0.5 + i / 3) % 1;
-      ctx.globalAlpha = Math.sin(phase * Math.PI);
-      ctx.font = `bold ${7 + phase * 4}px system-ui, sans-serif`;
-      ctx.fillText('z', head.x + 10 + phase * 10, neckY - 20 - phase * 18);
+      const phase = (time * 0.45 + i / 3) % 1;
+      drawZ(ctx, chin.x + 8 + Math.round(phase * 10), chin.y - 24 - Math.round(phase * 20), phase < 0.5 ? 1 : 2);
     }
-    ctx.restore();
 
-    const top = { x: head.x, y: neckY - 21 };
-    this.hitBox = { x0: head.x - 12, x1: head.x + 12, y0: top.y, y1: neckY + 4 };
-    return top;
+    const top = chin.y + 3 + head.top;
+    this.headTop = { x: chin.x, y: top };
+    this.hitBox = { x0: chin.x - 12, x1: chin.x + 12, y0: top, y1: chin.y + 4 };
   }
+}
 
-  /** Head drawn upward from the neck line at local y = `neckY`. */
-  private drawHead(ctx: CanvasRenderingContext2D, neckY: number, asleep: boolean): void {
-    ctx.fillStyle = PAL.skin;
-    ctx.beginPath();
-    ctx.roundRect(-9, neckY - 19, 18, 19, 6);
-    ctx.fill();
-    ctx.fillStyle = PAL.hair;
-    ctx.beginPath();
-    ctx.roundRect(-9.5, neckY - 21, 19, 7, 4);
-    ctx.fill();
-    ctx.fillRect(this.facing > 0 ? -9.5 : 6.5, neckY - 17, 3, 6);
-
-    const cx = asleep ? 0 : this.facing * 1.5;
-    const closed = asleep || this.blinkIn < 0;
-    ctx.fillStyle = '#1d1d22';
-    for (const x of [-4.5, 2.5]) ctx.fillRect(x + cx, closed ? neckY - 9.5 : neckY - 10, 2, closed ? 0.8 : 2.5);
-
-    // Scowling brows, slanting down toward the nose.
-    ctx.strokeStyle = PAL.hair;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(cx - 6.5, neckY - 14);
-    ctx.lineTo(cx - 1.8, neckY - 12);
-    ctx.moveTo(cx + 1.8, neckY - 12);
-    ctx.lineTo(cx + 6.5, neckY - 14);
-    ctx.stroke();
-
-    // Bushy mustache, anchored just under the nose: a solid band with drooping tips.
-    ctx.save();
-    ctx.translate(cx, neckY - 5.5);
-    ctx.fillStyle = PAL.hair;
-    ctx.beginPath();
-    ctx.moveTo(-5.5, 3.2);
-    ctx.quadraticCurveTo(-5.8, -1.6, -1, -1.4);
-    ctx.quadraticCurveTo(0, -0.8, 1, -1.4);
-    ctx.quadraticCurveTo(5.8, -1.6, 5.5, 3.2);
-    ctx.quadraticCurveTo(3, 2.6, 0, 2.9);
-    ctx.quadraticCurveTo(-3, 2.6, -5.5, 3.2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  /** Habbo-style name plate floating above the head; `y` is its bottom edge. */
-  private drawNameSign(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    ctx.save();
-    ctx.font = 'bold 9px system-ui, sans-serif';
-    const w = ctx.measureText(INMATE_NAME).width + 14;
-    ctx.fillStyle = PAL.sign;
-    ctx.strokeStyle = PAL.signText;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - NAME_SIGN_H, w, NAME_SIGN_H, 4);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(INMATE_NAME, x, y - NAME_SIGN_H / 2 + 0.5);
-    ctx.restore();
-  }
-
-  private drawBubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, alpha: number): void {
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    const w = Math.max(20, ctx.measureText(text).width + 12);
-    const h = 17;
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - h, w, h, 6);
-    ctx.moveTo(x - 4, y);
-    ctx.lineTo(x, y + 5);
-    ctx.lineTo(x + 4, y);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = text === '♥' ? '#e5484d' : '#1d2a3a';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x, y - h / 2 + 0.5);
-    ctx.restore();
+/** Pixel "z", size 1 (4x4) or 2 (6x6), white with a dark drop shadow. */
+function drawZ(ctx: CanvasRenderingContext2D, x: number, y: number, size: 1 | 2): void {
+  const n = size === 1 ? 4 : 6;
+  for (const [dx, color] of [
+    [1, '#1c1a1a'],
+    [0, '#ffffff'],
+  ] as const) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x + dx, y + dx, n, 1);
+    ctx.fillRect(x + dx, y + dx + n - 1, n, 1);
+    for (let i = 1; i < n - 1; i++) ctx.fillRect(x + dx + n - 1 - i, y + dx + i, 1, 1);
   }
 }

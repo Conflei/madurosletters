@@ -5,7 +5,7 @@ export interface View {
 }
 
 export interface Scene {
-  resize(width: number, height: number): void;
+  resize(width: number, height: number, dpr: number): void;
   update(dt: number): void;
   render(ctx: CanvasRenderingContext2D, view: View): void;
 }

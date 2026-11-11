@@ -1,3 +1,6 @@
+import '@fontsource/ubuntu/latin-400.css';
+import '@fontsource/ubuntu/latin-500.css';
+import '@fontsource/ubuntu/latin-700.css';
 import './styles.css';
 import { Game } from './core/Game';
 import { CellScene } from './scenes/CellScene';

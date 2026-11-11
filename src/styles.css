@@ -1,12 +1,10 @@
 :root {
-  --bg: #0b0e13;
-  --panel: rgba(14, 18, 26, 0.86);
-  --panel-border: rgba(255, 255, 255, 0.07);
-  --ink: #e8ecf1;
-  --muted: #8a95a5;
-  --accent: #f2c94c;
-  --danger: #ff5d5d;
-  --mood: #6fcf97;
+  --card: rgba(28, 28, 32, 0.95);
+  --card-hi: rgba(34, 34, 39, 0.6);
+  --card-lo: rgba(18, 18, 21, 0.6);
+  --ink: #ffffff;
+  --muted: #b3b3b8;
+  --toolbar-h: 52px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -20,7 +18,7 @@
 html,
 body {
   height: 100%;
-  background: #05070a;
+  background: #000;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -29,7 +27,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: Ubuntu, 'Trebuchet MS', sans-serif;
+  font-size: 13px;
   color: var(--ink);
   -webkit-user-select: none;
   user-select: none;
@@ -43,7 +42,7 @@ body {
   width: min(100vw, calc(100vh * 9 / 16));
   height: 100vh;
   overflow: hidden;
-  background: var(--bg);
+  background: #0e0e0e;
 }
 
 @supports (height: 100dvh) {
@@ -57,10 +56,9 @@ body {
   #app {
     height: calc(100dvh - 32px);
     width: calc((100dvh - 32px) * 9 / 16);
-    border-radius: 28px;
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 30px 80px rgba(0, 0, 0, 0.6);
+    border: 1px solid #000;
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px #2a2a30;
   }
 }
 
@@ -73,262 +71,416 @@ body {
   touch-action: none;
 }
 
+img {
+  image-rendering: pixelated;
+}
+
+.px-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
 /* ---------- HUD ---------- */
 
 #hud {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.nitro-card {
+  pointer-events: auto;
+  background: var(--card);
+  border: 1px solid #000;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 4px var(--card-hi),
+    inset 0 -3px var(--card-lo);
+}
+
+/* The room is centred and fitted into this box; it stays click-through so taps reach the canvas. */
+.stage {
+  position: absolute;
+  top: calc(var(--safe-top) + 58px);
+  bottom: calc(var(--safe-bottom) + var(--toolbar-h) + 110px);
+  left: 0;
+  right: 0;
+}
+
+.room-info {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  left: 8px;
+  padding: 6px 10px 7px;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 
-.hud-top,
-.panel {
-  pointer-events: auto;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+.room-info b {
+  font-size: 13px;
 }
 
-.hud-top {
-  margin: calc(var(--safe-top) + 10px) 12px 0;
-  padding: 10px 14px;
-  border-radius: 16px;
+.room-info span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.purse {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  right: 8px;
+  padding: 5px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.purse-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.purse-value {
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.purse-value small {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.notice {
+  position: absolute;
+  top: calc(var(--safe-top) + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 30px 9px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+
+.notice.closing {
+  opacity: 0;
+  transform: translate(-50%, -6px);
+}
+
+.notice-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #000;
+  border-radius: 4px;
+  background: #c4382c;
+  box-shadow:
+    inset 0 2px rgba(255, 255, 255, 0.3),
+    inset 0 -2px rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font: 700 14px/14px Ubuntu, sans-serif;
+  cursor: pointer;
+}
+
+/* ---------- Avatar overlays ---------- */
+
+.chat-layer {
+  position: absolute;
+  inset: 0 0 calc(var(--safe-bottom) + var(--toolbar-h)) 0;
+  overflow: hidden;
+}
+
+.name-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 7px 3px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.bubble {
+  position: absolute;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100% - 12px);
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 7px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  color: #000;
+  font-size: 13px;
+  transition: top 0.25s ease-out;
+  animation: bubble-in 0.12s ease-out;
+}
+
+.bubble::before,
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: var(--tail, 50%);
+  border: solid transparent;
+}
+
+.bubble::before {
+  bottom: -7px;
+  margin-left: -6px;
+  border-width: 7px 6px 0;
+  border-top-color: #000;
+}
+
+.bubble::after {
+  bottom: -5px;
+  margin-left: -5px;
+  border-width: 6px 5px 0;
+  border-top-color: #fff;
+}
+
+.bubble-head {
+  width: 26px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+  border-radius: 6px 0 0 6px;
+}
+
+.bubble-head img {
+  height: 22px;
+}
+
+.bubble-text {
+  padding: 4px 9px 5px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ---------- Infostand ---------- */
+
+.infostand {
+  position: absolute;
+  right: 8px;
+  bottom: calc(var(--safe-bottom) + var(--toolbar-h) + 8px);
+  width: 172px;
+  padding: 7px 10px 9px;
+  font-size: 12px;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.infostand-hidden .infostand {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.infostand h2 {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.infostand hr {
+  border: 0;
+  height: 1px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.infostand-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.profile {
+.infostand-figure {
+  width: 84px;
+  height: 92px;
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.avatar {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(#e0712f 0 0) bottom / 100% 34% no-repeat, #4e6b73;
-  overflow: hidden;
-}
-
-.avatar::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 6px;
-  width: 16px;
-  height: 17px;
-  transform: translateX(-50%);
-  border-radius: 6px;
-  background: linear-gradient(#121214 0 0) top / 100% 30% no-repeat, #e8b48a;
-}
-
-.avatar::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 17px;
-  width: 12px;
-  height: 4px;
-  transform: translateX(-50%);
-  border-radius: 4px 4px 1px 1px;
-  background: #121214;
-}
-
-.profile h1 {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-}
-
-.profile p {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.clock {
-  display: flex;
-  flex-direction: column;
   align-items: flex-end;
-  line-height: 1.1;
+  justify-content: center;
+  padding-bottom: 4px;
 }
 
-.clock > span {
-  font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+.infostand-figure img {
+  width: auto;
+  height: 76px;
 }
 
-.clock strong {
-  font-size: 18px;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  white-space: nowrap;
+.infostand-badges {
+  display: grid;
+  gap: 4px;
+  padding-right: 6px;
 }
 
-.clock small {
-  margin-left: 4px;
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.6px;
+.badge {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
 }
 
-/* The canvas scene is fitted into this box; it stays click-through so taps reach the canvas. */
-.stage {
-  flex: 1;
-  min-height: 0;
-  margin: 8px 12px;
-}
-
-.panel {
-  position: relative;
-  margin: 0 12px calc(var(--safe-bottom) + 12px);
-  padding: 14px 12px 12px;
-  border-radius: 22px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.stats {
-  flex: 1;
-  min-width: 0;
-  padding: 0 4px;
-}
-
-.tip {
-  margin-top: 8px;
-  font-size: 11px;
+.motto {
   color: var(--muted);
 }
 
-.stat {
-  --c: var(--accent);
-}
-
-.stat-mood {
-  --c: var(--mood);
-}
-
-.stat.low {
-  --c: var(--danger);
-}
-
-.stat-head {
+.mood {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 5px;
 }
 
-.stat-head svg {
-  width: 15px;
-  height: 15px;
-  color: var(--c);
-}
-
-.stat-head b {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.meter {
-  height: 8px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.08);
+.mood-bar {
+  flex: 1;
+  height: 12px;
+  border: 1px solid #000;
+  border-radius: 3px;
+  background: #3b3b42;
+  box-shadow: inset 0 2px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 
-.meter i {
+.mood-bar i {
   display: block;
   height: 100%;
   width: 0;
-  border-radius: inherit;
-  background: var(--c);
-  transition: width 0.4s ease, background 0.3s;
+  background: #5fb52f;
+  box-shadow:
+    inset 0 2px rgba(255, 255, 255, 0.35),
+    inset 0 -2px rgba(0, 0, 0, 0.2);
+  transition:
+    width 0.4s ease,
+    background-color 0.3s;
 }
 
-.stat.low .meter i {
-  animation: low-pulse 1s ease-in-out infinite;
+.mood b {
+  min-width: 20px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mood.low .mood-bar i {
+  background: #d23c2d;
+  animation: low-pulse 1s steps(2) infinite;
 }
 
 @keyframes low-pulse {
   50% {
-    opacity: 0.45;
+    opacity: 0.5;
   }
 }
 
-.actions {
+/* ---------- Toolbar ---------- */
+
+.toolbar {
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--toolbar-h) + var(--safe-bottom));
+  padding: 0 8px var(--safe-bottom);
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
+  background: var(--card);
+  border-top: 1px solid #000;
+  box-shadow:
+    inset 0 4px var(--card-hi),
+    inset 0 -3px var(--card-lo);
 }
 
-.action {
+.tool {
   appearance: none;
   border: 0;
-  background: rgba(255, 255, 255, 0.05);
+  background: none;
   color: var(--ink);
-  border-radius: 16px;
-  padding: 10px 16px 8px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
+  justify-content: center;
+  gap: 3px;
+  font: 700 10px Ubuntu, sans-serif;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
 }
 
-.action:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.94);
+.tool:hover {
+  filter: brightness(1.15);
 }
 
-.action-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, var(--c) 22%, transparent);
-  color: var(--c);
+.tool:active {
+  transform: translateY(1px);
 }
 
-.action-write {
-  --c: var(--mood);
+.tool-me img {
+  height: 34px;
 }
 
-svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 8px;
+  box-shadow: inset 0 -3px rgba(0, 0, 0, 0.12);
 }
 
-.action-icon svg {
-  width: 22px;
-  height: 22px;
+.chat-input input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 6px 10px 7px;
+  font: 16px Ubuntu, sans-serif;
+  color: #000;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.chat-input input::placeholder {
+  color: #8c8c8c;
 }
 
 .version {
   position: absolute;
-  right: 14px;
+  right: 8px;
   top: -16px;
   font-size: 10px;
   color: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
 }
 
 /* ---------- Rotate overlay (phones held in landscape) ---------- */
@@ -342,7 +494,7 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: var(--bg);
+  background: #0e0e0e;
   color: var(--muted);
   font-size: 14px;
 }
@@ -350,7 +502,7 @@ svg {
 .rotate-phone {
   width: 34px;
   height: 58px;
-  border: 3px solid var(--accent);
+  border: 3px solid #fff;
   border-radius: 8px;
   animation: rotate-hint 2s ease-in-out infinite;
 }

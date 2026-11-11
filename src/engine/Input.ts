@@ -2,6 +2,8 @@ export interface InputHandlers {
   onPan(dx: number, dy: number): void;
   onZoom(factor: number, x: number, y: number): void;
   onTap(x: number, y: number): void;
+  /** Mouse moved without a button held; null when it leaves the element. */
+  onHover(x: number | null, y: number | null): void;
 }
 
 interface PointerState {
@@ -26,6 +28,7 @@ export class PointerInput {
     el.addEventListener('pointermove', this.onMove);
     el.addEventListener('pointerup', this.onUp);
     el.addEventListener('pointercancel', this.onUp);
+    el.addEventListener('pointerleave', () => this.handlers.onHover?.(null, null));
     el.addEventListener('wheel', this.onWheel, { passive: false });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
@@ -54,9 +57,12 @@ export class PointerInput {
   };
 
   private onMove = (e: PointerEvent) => {
-    const prev = this.pointers.get(e.pointerId);
-    if (!prev) return;
     const p = this.local(e);
+    const prev = this.pointers.get(e.pointerId);
+    if (!prev) {
+      if (e.pointerType === 'mouse') this.handlers.onHover?.(p.x, p.y);
+      return;
+    }
     this.pointers.set(e.pointerId, p);
 
     if (this.pointers.size === 1) {

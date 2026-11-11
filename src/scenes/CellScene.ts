@@ -1,25 +1,34 @@
-import { PAL, WALL_H } from '../config';
-import type { Scene, View } from '../core/Scene';
-import { Camera } from '../engine/Camera';
-import { withPlaneX, withPlaneY } from '../engine/draw';
+import { PAL } from '../config';
+import type { Scene } from '../core/Scene';
+import { linePx } from '../engine/draw';
 import { PointerInput } from '../engine/Input';
-import { boxHull, insideConvex, project, unproject, type Vec2 } from '../engine/iso';
+import { boxHull, insideConvex, projectPx, unproject, type Vec2 } from '../engine/iso';
 import { InmateActor } from '../game/InmateActor';
 import { InmateState } from '../game/InmateState';
 import type { Hud } from '../ui/Hud';
 import { activityFor, inCell, PROPS, type Activity } from '../world/cellMap';
-import { LAMP_V, LAMPS, renderCell, type Lamp, type RoomImage } from '../world/CellRenderer';
+import { renderCell, type RoomImage } from '../world/CellRenderer';
 
-const TAP_MARK_TIME = 0.5;
+const TAP_MARK_TIME = 0.6;
 
-const WRITE: Activity = { ...(activityFor('stool') as Activity), writing: true, duration: 8, line: '✉ Dear…' };
+const WRITE: Activity = { ...(activityFor('stool') as Activity), writing: true, duration: 8, line: 'Dear…' };
 
+/**
+ * The cell is drawn 1:1 in art pixels into a small buffer, which is then blown up by a whole
+ * number onto the screen canvas with smoothing off, so every art pixel stays a crisp square.
+ */
 export class CellScene implements Scene {
-  private camera = new Camera();
   private room: RoomImage;
+  private buffer = document.createElement('canvas');
+  private bctx: CanvasRenderingContext2D;
   private state = new InmateState();
   private actor = new InmateActor();
-  private tapMark: { pos: Vec2; ttl: number } | null = null;
+  /** Integer art-pixel upscale and the world -> buffer offset. */
+  private k = 1;
+  private dpr = 1;
+  private off: Vec2 = { x: 0, y: 0 };
+  private hover: { x: number; y: number } | null = null;
+  private tapMark: { tile: { x: number; y: number }; ttl: number } | null = null;
   private time = 0;
   private clockIn = 0;
 
@@ -27,21 +36,41 @@ export class CellScene implements Scene {
     canvas: HTMLCanvasElement,
     private hud: Hud,
   ) {
-    const scale = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1)));
-    this.room = renderCell(scale);
+    this.room = renderCell();
+    const bctx = this.buffer.getContext('2d', { alpha: false });
+    if (!bctx) throw new Error('Unable to create scene buffer');
+    this.bctx = bctx;
 
-    new PointerInput(canvas, { onTap: (x, y) => this.tap(x, y) });
+    new PointerInput(canvas, {
+      onTap: (x, y) => this.tap(x, y),
+      onHover: (x, y) => {
+        const tile = x === null || y === null ? null : this.tileAt(this.screenToWorld(x, y));
+        this.hover = tile;
+        canvas.style.cursor = tile || (x !== null && y !== null && this.interactiveAt(this.screenToWorld(x, y))) ? 'pointer' : 'default';
+      },
+    });
+
+    this.actor.onSay = (text) => hud.say(text);
     hud.onAction((action) => {
       this.state.apply(action);
       this.actor.startActivity(WRITE);
       this.hud.setStats(this.state.stats);
     });
+    hud.onChat((text) => this.actor.say(text));
     hud.setStats(this.state.stats);
   }
 
-  resize(width: number, height: number): void {
-    this.camera.setViewport(width, height);
-    this.camera.fit(this.room.bounds, this.hud.stageRect());
+  resize(width: number, height: number, dpr: number): void {
+    this.dpr = dpr;
+    const stage = this.hud.stageRect();
+    const b = this.room.bounds;
+    this.k = Math.max(1, Math.floor(Math.min((stage.w * dpr) / b.w, (stage.h * dpr) / b.h)));
+
+    this.buffer.width = Math.ceil((width * dpr) / this.k);
+    this.buffer.height = Math.ceil((height * dpr) / this.k);
+    const cx = ((stage.x + stage.w / 2) * dpr) / this.k;
+    const cy = ((stage.y + stage.h / 2) * dpr) / this.k;
+    this.off = { x: Math.round(cx - (b.x + b.w / 2)), y: Math.round(cy - (b.y + b.h / 2)) };
   }
 
   update(dt: number): void {
@@ -60,33 +89,47 @@ export class CellScene implements Scene {
     this.hud.setStats(this.state.stats);
   }
 
-  render(ctx: CanvasRenderingContext2D, { width, height, dpr }: View): void {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const bg = ctx.createLinearGradient(0, 0, 0, height);
-    bg.addColorStop(0, PAL.bgTop);
-    bg.addColorStop(1, PAL.bgBottom);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, width, height);
+  render(ctx: CanvasRenderingContext2D): void {
+    const g = this.bctx;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = PAL.void;
+    g.fillRect(0, 0, this.buffer.width, this.buffer.height);
 
-    this.camera.apply(ctx, dpr);
+    g.setTransform(1, 0, 0, 1, this.off.x, this.off.y);
     const b = this.room.bounds;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.room.image, b.x, b.y, b.w, b.h);
-    this.drawLamps(ctx);
-    if (this.tapMark) this.drawTapMark(ctx, this.tapMark.pos, this.tapMark.ttl / TAP_MARK_TIME);
-    this.actor.draw(ctx, this.time);
+    g.drawImage(this.room.image, b.x, b.y);
+    const cursor = this.tapMark?.tile ?? this.hover;
+    if (cursor) drawTileCursor(g, cursor.x, cursor.y);
+    this.actor.draw(g, this.time);
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const v = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.35, width / 2, height / 2, Math.max(width, height) * 0.75);
-    v.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    v.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
-    ctx.fillStyle = v;
-    ctx.fillRect(0, 0, width, height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.buffer, 0, 0, this.buffer.width * this.k, this.buffer.height * this.k);
+
+    const head = this.worldToScreen(this.actor.headTop);
+    this.hud.placeAvatar(head.x, head.y);
+  }
+
+  private screenToWorld(sx: number, sy: number): Vec2 {
+    return { x: (sx * this.dpr) / this.k - this.off.x, y: (sy * this.dpr) / this.k - this.off.y };
+  }
+
+  private worldToScreen(p: Vec2): Vec2 {
+    return { x: ((p.x + this.off.x) * this.k) / this.dpr, y: ((p.y + this.off.y) * this.k) / this.dpr };
+  }
+
+  private tileAt(world: Vec2): { x: number; y: number } | null {
+    const t = unproject(world.x, world.y);
+    return inCell(t.x, t.y) ? { x: Math.floor(t.x), y: Math.floor(t.y) } : null;
+  }
+
+  private interactiveAt(world: Vec2): boolean {
+    return this.actor.hitTest(world) || this.activityAt(world) !== null;
   }
 
   private tap(sx: number, sy: number): void {
-    const world = this.camera.screenToWorld(sx, sy);
+    const world = this.screenToWorld(sx, sy);
+    this.hud.dismissTip();
     if (this.actor.hitTest(world)) {
       this.actor.poke();
       return;
@@ -99,7 +142,7 @@ export class CellScene implements Scene {
     const tile = unproject(world.x, world.y);
     if (inCell(tile.x, tile.y)) {
       this.actor.walkTo(tile);
-      this.tapMark = { pos: tile, ttl: TAP_MARK_TIME };
+      this.tapMark = { tile: { x: Math.floor(tile.x), y: Math.floor(tile.y) }, ttl: TAP_MARK_TIME };
     }
   }
 
@@ -118,49 +161,20 @@ export class CellScene implements Scene {
     }
     return best;
   }
+}
 
-  private lampIntensity(lamp: Lamp): number {
-    if (!lamp.flicker) return 1;
-    const burst = Math.sin(this.time * 0.9) > 0.9;
-    return burst && Math.sin(this.time * 63) * Math.sin(this.time * 17) > 0 ? 0.2 : 1;
-  }
-
-  private drawLamps(ctx: CanvasRenderingContext2D): void {
-    for (const lamp of LAMPS) {
-      const k = this.lampIntensity(lamp);
-      const p = project(lamp.x, lamp.y, lamp.z);
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(p.x, p.y + 4, 0, p.x, p.y + 4, 64);
-      g.addColorStop(0, `rgba(255, 214, 150, ${0.32 * k})`);
-      g.addColorStop(0.3, `rgba(255, 190, 120, ${0.1 * k})`);
-      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(p.x - 64, p.y - 60, 128, 128);
-      ctx.restore();
-
-      if (k < 1) {
-        const dim = () => {
-          ctx.fillStyle = 'rgba(40, 40, 44, 0.8)';
-          ctx.fillRect(-7, LAMP_V + 5, 14, 3);
-        };
-        if (lamp.x === 0) withPlaneX(ctx, 0, lamp.y, WALL_H, dim);
-        else withPlaneY(ctx, lamp.x, lamp.y, WALL_H, dim);
-      }
+/** Habbo's tile selector: a thick white diamond outline with a dark rim underneath. */
+function drawTileCursor(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const ring = (dy: number, inset: number, color: string) => {
+    const pts = [projectPx(x + inset, y + inset), projectPx(x + 1 - inset, y + inset), projectPx(x + 1 - inset, y + 1 - inset), projectPx(x + inset, y + 1 - inset)];
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % 4];
+      linePx(ctx, { x: a.x, y: a.y + dy }, { x: b.x, y: b.y + dy }, color);
     }
-  }
-
-  private drawTapMark(ctx: CanvasRenderingContext2D, tile: Vec2, life: number): void {
-    const p = project(tile.x, tile.y);
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.scale(1, 0.5);
-    ctx.beginPath();
-    ctx.arc(0, 0, 6 + (1 - life) * 10, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${life * 0.8})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-  }
+  };
+  ring(1, 0.04, 'rgba(0, 0, 0, 0.45)');
+  ring(0, 0.04, '#ffffff');
+  ring(-1, 0.04, '#ffffff');
+  ring(0, 0.1, 'rgba(255, 255, 255, 0.55)');
 }

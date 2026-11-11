@@ -30,7 +30,7 @@ export class Game {
 
   setScene(scene: Scene): void {
     this.scene = scene;
-    scene.resize(this.view.width, this.view.height);
+    scene.resize(this.view.width, this.view.height, this.view.dpr);
   }
 
   start(): void {
@@ -60,6 +60,6 @@ export class Game {
     this.view = { width: rect.width, height: rect.height, dpr };
     this.canvas.width = Math.round(rect.width * dpr);
     this.canvas.height = Math.round(rect.height * dpr);
-    this.scene?.resize(rect.width, rect.height);
+    this.scene?.resize(rect.width, rect.height, dpr);
   }
 }

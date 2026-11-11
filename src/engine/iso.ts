@@ -5,9 +5,29 @@ export interface Vec2 {
   y: number;
 }
 
+export interface Bounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /** Tile-space (x, y) plus height z in pixels -> world pixel position. */
 export function project(x: number, y: number, z = 0): Vec2 {
   return { x: (x - y) * HALF_W, y: (x + y) * HALF_H - z };
+}
+
+/** Same as project, snapped to whole pixels. */
+export function projectPx(x: number, y: number, z = 0): Vec2 {
+  const p = project(x, y, z);
+  return { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
+/** World pixel position on the floor plane (z = 0) -> fractional tile coordinates. */
+export function unproject(wx: number, wy: number): Vec2 {
+  const a = wx / HALF_W;
+  const b = wy / HALF_H;
+  return { x: (a + b) / 2, y: (b - a) / 2 };
 }
 
 /** Screen silhouette of an axis-aligned box (convex hexagon, in order). */
@@ -26,11 +46,4 @@ export function insideConvex(pts: Vec2[], p: Vec2): boolean {
     else if (s !== sign) return false;
   }
   return true;
-}
-
-/** World pixel position on the floor plane (z = 0) -> fractional tile coordinates. */
-export function unproject(wx: number, wy: number): Vec2 {
-  const a = wx / HALF_W;
-  const b = wy / HALF_H;
-  return { x: (a + b) / 2, y: (b - a) / 2 };
 }
