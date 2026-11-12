@@ -62,7 +62,7 @@ function icon(size: number, opts: { rounded: boolean; fill: number }): HTMLCanva
 
 /** The cell as the game draws it, with the inmate and a few envelopes on the floor. */
 function scene(): HTMLCanvasElement {
-  const room = renderCell();
+  const room = renderCell('night');
   const b = room.bounds;
   const [c, ctx] = canvas(b.w, b.h);
   ctx.setTransform(1, 0, 0, 1, -b.x, -b.y);

@@ -1,5 +1,5 @@
 import { feedLetters } from '../api';
-import { PAL, TIME_ZONE } from '../config';
+import { PAL } from '../config';
 import type { Scene } from '../core/Scene';
 import { linePx } from '../engine/draw';
 import { PointerInput } from '../engine/Input';
@@ -7,6 +7,7 @@ import { boxHull, insideConvex, projectPx, unproject, type Vec2 } from '../engin
 import { InmateActor } from '../game/InmateActor';
 import { NpcActor } from '../game/NpcActor';
 import { NPC_NAMES, type NpcId } from '../game/npcSprites';
+import { nycMinutes, skyAt, type Sky } from '../game/nycTime';
 import { FloorLetters } from '../game/FloorLetters';
 import { InmateState, READ_MOOD_COST } from '../game/InmateState';
 import type { Hud, NameTag } from '../ui/Hud';
@@ -25,13 +26,6 @@ const VISITORS: NpcId[] = ['diddy', 'luigi', 'pollo', 'cilia'];
 /** Chávez haunts the cell from midnight to 00:30, New York time (minutes since midnight). */
 const GHOST_HOURS = { from: 0, to: 30 };
 
-const nycClock = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
-
-function nycMinutes(now: Date): number {
-  const parts = nycClock.formatToParts(now);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return (get('hour') % 24) * 60 + get('minute');
-}
 
 interface Visitor {
   actor: NpcActor;
@@ -44,6 +38,9 @@ interface Visitor {
  */
 export class CellScene implements Scene {
   private room: RoomImage;
+  private sky: Sky;
+  /** `?cielo=dawn|day|dusk|night` holds the window view for testing. */
+  private skyPin: Sky | null = null;
   private buffer = document.createElement('canvas');
   private bctx: CanvasRenderingContext2D;
   private state = new InmateState();
@@ -65,7 +62,11 @@ export class CellScene implements Scene {
     canvas: HTMLCanvasElement,
     private hud: Hud,
   ) {
-    this.room = renderCell();
+    const params = new URLSearchParams(location.search);
+    const skyPin = params.get('cielo') as Sky | null;
+    this.skyPin = skyPin && ['dawn', 'day', 'dusk', 'night'].includes(skyPin) ? skyPin : null;
+    this.sky = this.skyPin ?? skyAt(new Date());
+    this.room = renderCell(this.sky);
     const bctx = this.buffer.getContext('2d', { alpha: false });
     if (!bctx) throw new Error('Unable to create scene buffer');
     this.bctx = bctx;
@@ -85,7 +86,7 @@ export class CellScene implements Scene {
     });
     hud.setStats(this.state.stats);
 
-    const pin = new URLSearchParams(location.search).get('visita') as NpcId | null;
+    const pin = params.get('visita') as NpcId | null;
     this.pinned = pin && pin in NPC_NAMES ? pin : null;
     if (this.pinned) this.addVisitor(this.pinned);
     else if (Math.random() < VISITOR_CHANCE) this.addVisitor(VISITORS[Math.floor(Math.random() * VISITORS.length)]);
@@ -128,6 +129,11 @@ export class CellScene implements Scene {
       const now = new Date();
       this.hud.updateClock(now);
       this.updateGhost(now);
+      const sky = this.skyPin ?? skyAt(now);
+      if (sky !== this.sky) {
+        this.sky = sky;
+        this.room = renderCell(sky);
+      }
     }
     this.hud.setStats(this.state.stats);
   }

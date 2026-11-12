@@ -1,6 +1,7 @@
 import { BAR_H, FLOOR_T, HALF_W, PAINT_H, PAL, WALL_H, WALL_T } from '../config';
 import { boxPx, boxStyle, ellipsePx, fillPoly, linePx, planeRect, shade, tileDiamond, type BoxStyle, type Plane } from '../engine/draw';
 import { projectPx, type Bounds, type Vec2 } from '../engine/iso';
+import type { Sky } from '../game/nycTime';
 import { CELL_D, CELL_W, CORRIDOR_D, CORRIDOR_W, DOOR_X, PROPS, SEAT_Z, type Prop, type PropKind } from './cellMap';
 
 export interface RoomImage {
@@ -30,8 +31,8 @@ export function cellBounds(): Bounds {
   return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
 }
 
-/** Paints the static cell once, at 1 art pixel per canvas pixel. */
-export function renderCell(): RoomImage {
+/** Paints the static cell at 1 art pixel per canvas pixel; repainted only when the sky changes. */
+export function renderCell(sky: Sky): RoomImage {
   const bounds = cellBounds();
   const image = document.createElement('canvas');
   image.width = bounds.w;
@@ -43,7 +44,7 @@ export function renderCell(): RoomImage {
   // Walls extend below the floor line for their end caps, so the floor must cover them afterwards.
   drawWallBoxes(ctx);
   drawFloor(ctx);
-  drawWallFaces(ctx);
+  drawWallFaces(ctx, sky);
   drawShadows(ctx);
   for (const d of depthSort(buildDrawables())) d.draw(ctx);
 
@@ -107,7 +108,7 @@ const wallColors = (dark: number): WallColors => ({
   base: shade(PAL.wallBase, dark),
 });
 
-function drawWallFaces(ctx: CanvasRenderingContext2D): void {
+function drawWallFaces(ctx: CanvasRenderingContext2D, sky: Sky): void {
   const side: Plane = { ...projectPx(0, CELL_D, WALL_H), slope: -1 };
   const back = backPlane();
 
@@ -119,7 +120,7 @@ function drawWallFaces(ctx: CanvasRenderingContext2D): void {
   drawInfoSign(ctx, back, SIGNS[0]);
   drawRankingSign(ctx, back, SIGNS[1]);
 
-  drawWindow(ctx, side, sideU(1.1) - 14, 18);
+  drawWindow(ctx, side, sideU(1.1) - 14, 18, sky);
   drawWallLamp(ctx, side, sideU(2.75), false);
   drawPhotos(ctx, side, sideU(2.75), 36);
   drawTally(ctx, side, sideU(3.95), 46);
@@ -206,15 +207,99 @@ function paintWall(ctx: CanvasRenderingContext2D, pl: Plane, u0: number, u1: num
   planeRect(ctx, pl, u0, u1, 0, 1, c.mortar);
 }
 
-function drawWindow(ctx: CanvasRenderingContext2D, pl: Plane, u: number, v: number): void {
+interface SkyArt {
+  /** Bands of colour from the top of the window down: [height, colour]; the last fills the rest. */
+  bands: [number, string][];
+  /** Sun or moon: [u, v, size, colour] within the window. */
+  orb: [number, number, number, string];
+  stars: boolean;
+  clouds: string | null;
+  skyline: string;
+  /** Lit office and apartment windows in the skyline. */
+  lights: string | null;
+}
+
+const SKIES: Record<Sky, SkyArt> = {
+  dawn: {
+    bands: [[6, '#93b6e2'], [6, '#f1bdb4'], [6, '#ffd8a0'], [0, '#fff0c4']],
+    orb: [8, 15, 5, '#ffffff'],
+    stars: false,
+    clouds: '#fbe3dc',
+    skyline: '#6b6f8e',
+    lights: '#ffe3a0',
+  },
+  day: {
+    bands: [[9, '#6fb2ea'], [0, '#a8d6f6']],
+    orb: [18, 3, 5, '#fff6b0'],
+    stars: false,
+    clouds: '#ffffff',
+    skyline: '#8796ac',
+    lights: null,
+  },
+  dusk: {
+    bands: [[6, '#3a2e6c'], [6, '#9c4c7a'], [6, '#e8784a'], [0, '#f9b35e']],
+    orb: [16, 16, 5, '#ffc35a'],
+    stars: false,
+    clouds: '#c9668a',
+    skyline: '#2b2442',
+    lights: '#ffd77a',
+  },
+  night: {
+    bands: [[9, '#2d5288'], [0, '#1f3a63']],
+    orb: [17, 4, 4, '#e9eefc'],
+    stars: true,
+    clouds: null,
+    skyline: '#121a2e',
+    lights: '#f2d06b',
+  },
+};
+
+/** Brooklyn rooftops along the bottom of the window: [u0, u1, height]. */
+const SKYLINE: [number, number, number][] = [
+  [0, 4, 6],
+  [4, 8, 9],
+  [8, 11, 5],
+  [11, 16, 11],
+  [16, 19, 7],
+  [19, 24, 10],
+  [24, 28, 5],
+];
+
+/** Barred window with the view outside at the given time of day. */
+function drawWindow(ctx: CanvasRenderingContext2D, pl: Plane, u: number, v: number, sky: Sky): void {
   const w = 28;
   const h = 26;
+  const art = SKIES[sky];
   planeRect(ctx, pl, u - 2, u + w + 2, v - 2, v + h + 2, PAL.windowFrame);
-  planeRect(ctx, pl, u, u + w, v, v + h, '#1f3a63');
-  planeRect(ctx, pl, u, u + w, v, v + 9, '#2d5288');
-  planeRect(ctx, pl, u + 17, u + 21, v + 4, v + 8, '#e9eefc');
-  planeRect(ctx, pl, u + 4, u + 5, v + 4, v + 5, '#c9d6f5');
-  planeRect(ctx, pl, u + 9, u + 10, v + 15, v + 16, '#c9d6f5');
+
+  let y = v;
+  for (const [bh, color] of art.bands) {
+    const bottom = bh ? Math.min(y + bh, v + h) : v + h;
+    planeRect(ctx, pl, u, u + w, y, bottom, color);
+    y = bottom;
+  }
+  if (art.stars) {
+    for (const [su, sv] of [[4, 4], [9, 15], [24, 7], [12, 2]]) planeRect(ctx, pl, u + su, u + su + 1, v + sv, v + sv + 1, '#c9d6f5');
+  }
+  const [ou, ov, size, orbColor] = art.orb;
+  planeRect(ctx, pl, u + ou, u + ou + size, v + ov + 1, v + ov + size - 1, orbColor);
+  planeRect(ctx, pl, u + ou + 1, u + ou + size - 1, v + ov, v + ov + size, orbColor);
+  if (art.clouds) {
+    planeRect(ctx, pl, u + 2, u + 9, v + 7, v + 9, art.clouds);
+    planeRect(ctx, pl, u + 4, u + 8, v + 6, v + 7, art.clouds);
+    planeRect(ctx, pl, u + 21, u + 27, v + 11, v + 12, art.clouds);
+  }
+
+  for (const [u0, u1, bh] of SKYLINE) {
+    planeRect(ctx, pl, u + u0, u + u1, v + h - bh, v + h, art.skyline);
+    if (!art.lights) continue;
+    for (let lu = u0 + 1; lu < u1 - 1; lu += 2) {
+      for (let lv = h - bh + 2; lv < h - 1; lv += 3) {
+        if ((lu * 7 + lv * 3) % 5 < 2) planeRect(ctx, pl, u + lu, u + lu + 1, v + lv, v + lv + 1, art.lights);
+      }
+    }
+  }
+
   for (const bx of [6, 13, 20]) planeRect(ctx, pl, u + bx, u + bx + 2, v, v + h, '#2a2e35');
   planeRect(ctx, pl, u, u + w, v + 12, v + 14, '#2a2e35');
   planeRect(ctx, pl, u - 4, u + w + 4, v + h + 2, v + h + 5, shade(PAL.wallBlock, 0.25));

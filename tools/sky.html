@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Dev-only: the cell window at each time of day. -->
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Window skies</title>
+    <style>
+      body { background: #111; color: #ddd; display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; font: 13px sans-serif; }
+      canvas { image-rendering: pixelated; width: 250px; }
+      figure { margin: 0; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import { renderCell } from '../src/world/CellRenderer.ts';
+      for (const sky of ['dawn', 'day', 'dusk', 'night']) {
+        const room = renderCell(sky);
+        const c = document.createElement('canvas');
+        c.width = 50; c.height = 44;
+        c.getContext('2d').drawImage(room.image, -100, -50);
+        const fig = document.createElement('figure');
+        fig.append(c, Object.assign(document.createElement('figcaption'), { textContent: sky }));
+        document.body.append(fig);
+      }
+    </script>
+  </body>
+</html>
