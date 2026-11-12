@@ -20,7 +20,7 @@ const TAG_CLEARANCE = { x: 80, y: 22 };
 const READ_LINES = ['…', 'Hmpf.', 'Bah.', '¿Otra más?'];
 
 /** Chance, on each load, that one of these cellmates is in the cell. */
-const VISITOR_CHANCE = 0.05;
+const VISITOR_CHANCE = 0.15;
 const VISITORS: NpcId[] = ['diddy', 'luigi', 'pollo', 'cilia'];
 /** Chávez haunts the cell from midnight to 00:30, New York time (minutes since midnight). */
 const GHOST_HOURS = { from: 0, to: 30 };
