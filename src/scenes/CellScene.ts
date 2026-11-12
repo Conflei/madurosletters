@@ -81,9 +81,7 @@ export class CellScene implements Scene {
 
     this.actor.onSay = (text) => hud.say(text);
     hud.onLetterSent((text) => {
-      this.state.apply('write');
       this.letters.add(text, 'Tú');
-      this.hud.setStats(this.state.stats);
     });
     hud.setStats(this.state.stats);
 
@@ -204,6 +202,8 @@ export class CellScene implements Scene {
     const world = this.screenToWorld(sx, sy);
     if (this.actor.hitTest(world)) {
       this.actor.poke();
+      this.state.apply('poke');
+      this.hud.setStats(this.state.stats);
       return;
     }
     const visitor = this.visitors.find((v) => v.actor.hitTest(world));

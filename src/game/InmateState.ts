@@ -1,23 +1,28 @@
 export type StatKey = 'mood';
-export type CareAction = 'write' | 'read';
+export type CareAction = 'read' | 'poke';
 
 export type Stats = Record<StatKey, number>;
 
 /** Points lost per real minute. */
 const DECAY: Stats = { mood: 0.5 };
 
-const EFFECTS: Record<CareAction, Partial<Stats>> = {
-  write: { mood: 25 },
-  read: { mood: -12 },
+/** Ánimo only ever goes down: reading letters hurts most, being poked a little. */
+const COSTS: Record<CareAction, [number, number]> = {
+  read: [12, 12],
+  poke: [2, 3],
 };
 
-export const READ_MOOD_COST = -(EFFECTS.read.mood ?? 0);
+/** Ánimo on page load, picked fresh each time. */
+const START_MOOD: [number, number] = [90, 100];
+
+export const READ_MOOD_COST = COSTS.read[0];
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
+const between = ([lo, hi]: [number, number]) => lo + Math.floor(Math.random() * (hi - lo + 1));
 
-/** The inmate's needs, Tamagotchi style: they slowly drain, care actions refill. */
+/** The inmate's spirits. They start high on every visit and can only sink from there. */
 export class InmateState {
-  stats: Stats = { mood: 60 };
+  stats: Stats = { mood: between(START_MOOD) };
 
   tick(minutes: number): void {
     for (const key of Object.keys(DECAY) as StatKey[]) {
@@ -26,8 +31,6 @@ export class InmateState {
   }
 
   apply(action: CareAction): void {
-    for (const [key, delta] of Object.entries(EFFECTS[action]) as [StatKey, number][]) {
-      this.stats[key] = clamp(this.stats[key] + delta);
-    }
+    this.stats.mood = clamp(this.stats.mood - between(COSTS[action]));
   }
 }
