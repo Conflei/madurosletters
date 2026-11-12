@@ -14,6 +14,8 @@ import { activityFor, inCell, PROPS, type Activity } from '../world/cellMap';
 import { renderCell, signAt, type RoomImage } from '../world/CellRenderer';
 
 const TAP_MARK_TIME = 0.6;
+/** Screen px two name tags need between them before the visitor's is lifted above Maduro's. */
+const TAG_CLEARANCE = { x: 80, y: 22 };
 
 const READ_LINES = ['…', 'Hmpf.', 'Bah.', '¿Otra más?'];
 
@@ -160,13 +162,15 @@ export class CellScene implements Scene {
     this.hud.placeAvatar(head.x, head.y);
     for (const v of this.visitors) {
       const top = this.worldToScreen(v.actor.headTop);
-      v.tag.place(top.x, top.y, v.actor.opacity);
+      // Stack over Maduro's tag instead of hiding behind it when they stand together.
+      const crowded = Math.abs(top.x - head.x) < TAG_CLEARANCE.x && Math.abs(top.y - head.y) < TAG_CLEARANCE.y;
+      v.tag.place(top.x, crowded ? Math.min(top.y, head.y) - TAG_CLEARANCE.y : top.y, v.actor.opacity);
     }
   }
 
   private addVisitor(id: NpcId): void {
     const ghost = id === 'chavez';
-    const actor = new NpcActor(id, ghost, this.actor.pos);
+    const actor = new NpcActor(id, ghost, this.actor.pos, id === 'diddy');
     this.visitors.push({ actor, tag: this.hud.addNameTag(NPC_NAMES[id], ghost) });
   }
 

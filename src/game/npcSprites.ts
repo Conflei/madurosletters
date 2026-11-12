@@ -50,7 +50,6 @@ interface Look {
 }
 
 const ORANGE: Suit = { base: '#f07c1e', shade: '#c9600f', deep: '#a44c08', light: '#ff9d45' };
-const KHAKI: Suit = { base: '#c7b183', shade: '#a8925f', deep: '#8a7647', light: '#dcc89c' };
 const RED: Suit = { base: '#c8202e', shade: '#9c1522', deep: '#7a0f19', light: '#e04452' };
 
 const EYE = '#1a1418';
@@ -69,7 +68,7 @@ const LOOKS: Record<NpcId, Look> = {
   // Sean "Diddy" Combs: shaved head, short beard, dark shades.
   diddy: {
     skin: { base: '#80502f', shade: '#653d22', deep: '#4c2c18' },
-    suit: KHAKI,
+    suit: ORANGE,
     hip: -20,
     half: 8,
     belly: false,
@@ -102,7 +101,7 @@ const LOOKS: Record<NpcId, Look> = {
   // Luigi Mangione: thick dark hair swept back with volume, strong brows, clean-shaven.
   luigi: {
     skin: { base: '#ecc19c', shade: '#cf9e78', deep: '#b07d58' },
-    suit: KHAKI,
+    suit: ORANGE,
     hip: -21,
     half: 8,
     belly: false,
@@ -121,7 +120,7 @@ const LOOKS: Record<NpcId, Look> = {
       return 3;
     },
   },
-  // Hugo "El Pollo" Carvajal: grey hair, glasses, grey mustache, a bit of a belly.
+  // Hugo "El Pollo" Carvajal: bald with a grey fringe round the sides, glasses, grey mustache, a bit of a belly.
   pollo: {
     skin: { base: '#d9a07a', shade: '#bb825d', deep: '#9c6644' },
     suit: ORANGE,
@@ -132,10 +131,12 @@ const LOOKS: Record<NpcId, Look> = {
     head(px, y) {
       const grey = '#cfcfca';
       const greyShade = '#a2a29c';
-      rounded(px, -8, y - 1, 17, 4, [4, 2, 0], grey);
-      px(1, y + 2, 8, 9, grey);
-      px(5, y + 4, 3, 6, greyShade);
-      px(-9, y + 3, 2, 4, grey);
+      px(-4, y + 1, 4, 1, '#ecc0a0');
+      px(-3, y + 2, 2, 1, '#ecc0a0');
+      px(3, y + 4, 6, 8, grey);
+      px(6, y + 5, 2, 6, greyShade);
+      px(2, y + 3, 3, 1, grey);
+      px(-9, y + 6, 1, 3, grey);
       // Wire-rim glasses.
       const frame = '#2b2b2b';
       for (const x of [-9, -3]) {
@@ -148,21 +149,21 @@ const LOOKS: Record<NpcId, Look> = {
       // Mustache.
       px(-8, y + 14, 7, 2, grey);
       px(-8, y + 16, 1, 1, grey);
-      return 1;
+      return 0;
     },
   },
-  // Cilia Flores: short light blonde bob with bangs, red lipstick, gold earrings.
+  // Cilia Flores: short dark brown bob with bangs, red lipstick, gold earrings.
   cilia: {
-    skin: { base: '#efc6a6', shade: '#d3a684', deep: '#b58563' },
+    skin: { base: '#d29a72', shade: '#b47d57', deep: '#93603e' },
     suit: ORANGE,
     hip: -18,
     half: 7,
     belly: false,
-    brows: '#8a6a3c',
+    brows: '#2a1a12',
     head(px, y) {
-      const hair = '#dcb874';
-      const shade = '#b38b4b';
-      const hi = '#f1d699';
+      const hair = '#3a2418';
+      const shade = '#26160e';
+      const hi = '#6a4532';
       rounded(px, -10, y - 2, 20, 9, [5, 3, 1, 0], hair);
       px(1, y + 6, 9, 11, hair);
       px(6, y + 7, 3, 10, shade);

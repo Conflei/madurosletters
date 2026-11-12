@@ -11,6 +11,11 @@ const HOP_TIME = 0.4;
 const FADE_TIME = 1.2;
 /** Tiles to keep between a visitor's destination and the inmate. */
 const PERSONAL_SPACE = 0.9;
+/** A follower keeps this close to the inmate, from an angle that shifts every few seconds. */
+const FOLLOW_DISTANCE = 0.6;
+const FOLLOW_SLACK = 0.25;
+const FOLLOW_SPEED = 1.0;
+const FOLLOW_REANGLE: [number, number] = [3, 6];
 
 interface Box {
   x0: number;
@@ -18,6 +23,11 @@ interface Box {
   x1: number;
   y1: number;
 }
+
+const clampToFloor = (p: Vec2): Vec2 => {
+  const a = FREE_AREA;
+  return { x: Math.max(a.minX, Math.min(a.maxX, p.x)), y: Math.max(a.minY, Math.min(a.maxY, p.y)) };
+};
 
 const randomSpot = (): Vec2 => {
   const a = FREE_AREA;
@@ -40,11 +50,15 @@ export class NpcActor {
   private blinkIn = 2 + Math.random() * 3;
   private leaving = false;
   private hitBox: Box | null = null;
+  private followAngle = Math.random() * Math.PI * 2;
+  private reangleIn = 0;
 
+  /** `follows`: sticks close to the inmate instead of wandering. */
   constructor(
     readonly id: NpcId,
     readonly ghost: boolean,
     avoid: Vec2,
+    readonly follows = false,
   ) {
     this.pos = this.spotAwayFrom(avoid);
   }
@@ -74,6 +88,10 @@ export class NpcActor {
     this.blinkIn -= dt;
     if (this.blinkIn < -0.15) this.blinkIn = 2 + Math.random() * 4;
 
+    if (this.follows) {
+      this.follow(dt, inmate);
+      return;
+    }
     if (!this.target) {
       this.idle -= dt;
       if (this.idle <= 0) this.target = this.spotAwayFrom(inmate);
@@ -117,6 +135,37 @@ export class NpcActor {
     const top = f.y - lift + sprite.top;
     this.headTop = { x: f.x, y: top };
     this.hitBox = { x0: f.x - 11, x1: f.x + 11, y0: top, y1: f.y + 4 - lift };
+  }
+
+  /** Trails the inmate: heads for a spot just beside him and turns to face him when there. */
+  private follow(dt: number, inmate: Vec2): void {
+    this.reangleIn -= dt;
+    if (this.reangleIn <= 0) {
+      this.reangleIn = FOLLOW_REANGLE[0] + Math.random() * (FOLLOW_REANGLE[1] - FOLLOW_REANGLE[0]);
+      this.followAngle += (Math.random() - 0.5) * Math.PI;
+    }
+    const spot = clampToFloor({
+      x: inmate.x + Math.cos(this.followAngle) * FOLLOW_DISTANCE,
+      y: inmate.y + Math.sin(this.followAngle) * FOLLOW_DISTANCE,
+    });
+    const dx = spot.x - this.pos.x;
+    const dy = spot.y - this.pos.y;
+    const dist = Math.hypot(dx, dy);
+    const busy = this.target !== null;
+    if (dist > (busy ? 0.05 : FOLLOW_SLACK)) {
+      const step = Math.min(dist, FOLLOW_SPEED * dt);
+      this.pos.x += (dx / dist) * step;
+      this.pos.y += (dy / dist) * step;
+      this.walkClock += dt;
+      this.target = spot;
+      const screenDx = dx - dy;
+      if (Math.abs(screenDx) > 0.01) this.facing = screenDx > 0 ? 1 : -1;
+      return;
+    }
+    this.target = null;
+    this.walkClock = 0;
+    const toInmate = inmate.x - this.pos.x - (inmate.y - this.pos.y);
+    if (Math.abs(toInmate) > 0.05) this.facing = toInmate > 0 ? 1 : -1;
   }
 
   private spotAwayFrom(p: Vec2): Vec2 {
