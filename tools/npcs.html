@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Dev-only: preview of the cellmate sprites at a large scale. -->
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NPC sprites</title>
+    <style>
+      body { background: #8a8f96; display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; font: 13px sans-serif; }
+      canvas { image-rendering: pixelated; width: 160px; height: 320px; }
+      figure { margin: 0; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import { avatarFrame } from '../src/game/avatar.ts';
+      import { npcFrame, NPC_NAMES } from '../src/game/npcSprites.ts';
+      const show = (label, c) => {
+        const fig = document.createElement('figure');
+        const copy = document.createElement('canvas');
+        copy.width = 40; copy.height = 80;
+        copy.getContext('2d').drawImage(c, (40 - c.width) / 2, 0);
+        fig.append(copy, Object.assign(document.createElement('figcaption'), { textContent: label }));
+        document.body.append(fig);
+      };
+      show('Maduro', avatarFrame('stand', 0, -1, 'normal').canvas);
+      for (const id of Object.keys(NPC_NAMES)) show(NPC_NAMES[id], npcFrame(id, 0, -1, false, id === 'chavez').canvas);
+      show('Chávez (sin fantasma)', npcFrame('chavez', 0, -1, false).canvas);
+      show('Luigi caminando', npcFrame('luigi', 1, 1, false).canvas);
+    </script>
+  </body>
+</html>

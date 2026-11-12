@@ -1,19 +1,40 @@
 import { feedLetters } from '../api';
-import { PAL } from '../config';
+import { PAL, TIME_ZONE } from '../config';
 import type { Scene } from '../core/Scene';
 import { linePx } from '../engine/draw';
 import { PointerInput } from '../engine/Input';
 import { boxHull, insideConvex, projectPx, unproject, type Vec2 } from '../engine/iso';
 import { InmateActor } from '../game/InmateActor';
+import { NpcActor } from '../game/NpcActor';
+import { NPC_NAMES, type NpcId } from '../game/npcSprites';
 import { FloorLetters } from '../game/FloorLetters';
 import { InmateState, READ_MOOD_COST } from '../game/InmateState';
-import type { Hud } from '../ui/Hud';
+import type { Hud, NameTag } from '../ui/Hud';
 import { activityFor, inCell, PROPS, type Activity } from '../world/cellMap';
 import { renderCell, signAt, type RoomImage } from '../world/CellRenderer';
 
 const TAP_MARK_TIME = 0.6;
 
 const READ_LINES = ['…', 'Hmpf.', 'Bah.', '¿Otra más?'];
+
+/** Chance, on each load, that one of these cellmates is in the cell. */
+const VISITOR_CHANCE = 0.05;
+const VISITORS: NpcId[] = ['diddy', 'luigi', 'pollo', 'cilia'];
+/** Chávez haunts the cell from midnight to 00:30, New York time (minutes since midnight). */
+const GHOST_HOURS = { from: 0, to: 30 };
+
+const nycClock = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
+
+function nycMinutes(now: Date): number {
+  const parts = nycClock.formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return (get('hour') % 24) * 60 + get('minute');
+}
+
+interface Visitor {
+  actor: NpcActor;
+  tag: NameTag;
+}
 
 /**
  * The cell is drawn 1:1 in art pixels into a small buffer, which is then blown up by a whole
@@ -26,6 +47,9 @@ export class CellScene implements Scene {
   private state = new InmateState();
   private actor = new InmateActor();
   private letters = new FloorLetters();
+  private visitors: Visitor[] = [];
+  /** `?visita=<id>` pins a visitor for testing; a pinned Chávez ignores the clock. */
+  private pinned: NpcId | null = null;
   /** Integer art-pixel upscale and the world -> buffer offset. */
   private k = 1;
   private dpr = 1;
@@ -61,6 +85,12 @@ export class CellScene implements Scene {
     });
     hud.setStats(this.state.stats);
 
+    const pin = new URLSearchParams(location.search).get('visita') as NpcId | null;
+    this.pinned = pin && pin in NPC_NAMES ? pin : null;
+    if (this.pinned) this.addVisitor(this.pinned);
+    else if (Math.random() < VISITOR_CHANCE) this.addVisitor(VISITORS[Math.floor(Math.random() * VISITORS.length)]);
+    this.updateGhost(new Date());
+
     this.letters.refill = feedLetters;
     feedLetters()
       .then((remote) => this.letters.load(remote))
@@ -84,6 +114,9 @@ export class CellScene implements Scene {
     this.time += dt;
     this.state.tick(dt / 60);
     this.actor.update(dt);
+    for (const v of this.visitors) v.actor.update(dt, this.actor.pos);
+    for (const v of this.visitors.filter((v) => v.actor.gone)) v.tag.remove();
+    this.visitors = this.visitors.filter((v) => !v.actor.gone);
     this.letters.update(dt);
     if (this.tapMark) {
       this.tapMark.ttl -= dt;
@@ -92,7 +125,9 @@ export class CellScene implements Scene {
     this.clockIn -= dt;
     if (this.clockIn <= 0) {
       this.clockIn = 1;
-      this.hud.updateClock(new Date());
+      const now = new Date();
+      this.hud.updateClock(now);
+      this.updateGhost(now);
     }
     this.hud.setStats(this.state.stats);
   }
@@ -109,7 +144,13 @@ export class CellScene implements Scene {
     const cursor = this.tapMark?.tile ?? this.hover;
     if (cursor) drawTileCursor(g, cursor.x, cursor.y);
     this.letters.draw(g, this.time);
-    this.actor.draw(g, this.time);
+    // Back to front, so whoever is nearer the viewer overlaps the other.
+    const people: { depth: number; draw: () => void }[] = [
+      { depth: this.actor.pos.x + this.actor.pos.y, draw: () => this.actor.draw(g, this.time) },
+      ...this.visitors.map((v) => ({ depth: v.actor.pos.x + v.actor.pos.y, draw: () => v.actor.draw(g, this.time) })),
+    ];
+    people.sort((a, b) => a.depth - b.depth);
+    for (const p of people) p.draw();
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
@@ -117,6 +158,25 @@ export class CellScene implements Scene {
 
     const head = this.worldToScreen(this.actor.headTop);
     this.hud.placeAvatar(head.x, head.y);
+    for (const v of this.visitors) {
+      const top = this.worldToScreen(v.actor.headTop);
+      v.tag.place(top.x, top.y, v.actor.opacity);
+    }
+  }
+
+  private addVisitor(id: NpcId): void {
+    const ghost = id === 'chavez';
+    const actor = new NpcActor(id, ghost, this.actor.pos);
+    this.visitors.push({ actor, tag: this.hud.addNameTag(NPC_NAMES[id], ghost) });
+  }
+
+  /** Brings the ghost in at midnight and lets him fade away at half past. */
+  private updateGhost(now: Date): void {
+    const minutes = nycMinutes(now);
+    const due = this.pinned === 'chavez' || (minutes >= GHOST_HOURS.from && minutes < GHOST_HOURS.to);
+    const ghost = this.visitors.find((v) => v.actor.ghost && !v.actor.gone);
+    if (due && !ghost) this.addVisitor('chavez');
+    else if (!due && ghost) ghost.actor.leave();
   }
 
   private screenToWorld(sx: number, sy: number): Vec2 {
@@ -133,13 +193,18 @@ export class CellScene implements Scene {
   }
 
   private interactiveAt(world: Vec2): boolean {
-    return this.actor.hitTest(world) || signAt(world) !== null || this.letters.at(world) !== null || this.activityAt(world) !== null;
+    return this.actor.hitTest(world) || this.visitors.some((v) => v.actor.hitTest(world)) || signAt(world) !== null || this.letters.at(world) !== null || this.activityAt(world) !== null;
   }
 
   private tap(sx: number, sy: number): void {
     const world = this.screenToWorld(sx, sy);
     if (this.actor.hitTest(world)) {
       this.actor.poke();
+      return;
+    }
+    const visitor = this.visitors.find((v) => v.actor.hitTest(world));
+    if (visitor) {
+      visitor.actor.hop();
       return;
     }
     const sign = signAt(world);

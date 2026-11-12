@@ -12,6 +12,12 @@ const LETTER_MAX = 280;
 const INSTAGRAM = 'fxizrr';
 const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM}/`;
 
+/** Name label that follows a visitor; `place` takes screen coordinates of the top of the head. */
+export interface NameTag {
+  place(x: number, y: number, opacity: number): void;
+  remove(): void;
+}
+
 type ReadableLetter = Pick<FloorLetter, 'id' | 'text' | 'from'>;
 
 const LETTER_MIN = 5;
@@ -451,6 +457,20 @@ export class Hud {
       this.nameTag.style.transform = `translate(${rx}px, ${ry - 4}px) translate(-50%, -100%)`;
     }
     this.driftBubbles();
+  }
+
+  addNameTag(text: string, ghost: boolean): NameTag {
+    const el = document.createElement('div');
+    el.className = ghost ? 'name-tag name-tag-npc is-ghost' : 'name-tag name-tag-npc';
+    el.textContent = text;
+    this.nameTag.before(el);
+    return {
+      place: (x, y, opacity) => {
+        el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y) - 4}px) translate(-50%, -100%)`;
+        el.style.opacity = String(opacity);
+      },
+      remove: () => el.remove(),
+    };
   }
 
   /** Habbo chat: a new bubble appears over the speaker and pushes older ones up. */

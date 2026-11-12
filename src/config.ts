@@ -1,5 +1,5 @@
 export const GAME_TITLE = 'Las cartas de Maduro';
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 
 /** Short name shown on the tag above the character. */
 export const INMATE_NAME = 'Maduro';

@@ -247,7 +247,8 @@ function drawHead(px: Px, hip: number, face: Expression): number {
 }
 
 /** 1px outline around the opaque pixels, each in a darkened copy of the pixel it borders. */
-function outline(ctx: CanvasRenderingContext2D): void {
+export function outline(ctx: CanvasRenderingContext2D): void {
+  const { width: W, height: H } = ctx.canvas;
   const img = ctx.getImageData(0, 0, W, H);
   const src = new Uint8ClampedArray(img.data);
   const d = img.data;

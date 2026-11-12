@@ -864,3 +864,15 @@ a.btn {
 .mood-cost.is-rank {
   color: #3a6f8f;
 }
+
+.name-tag-npc {
+  background: rgba(0, 0, 0, 0.45);
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.name-tag-npc.is-ghost {
+  color: #cdeaff;
+  background: rgba(40, 80, 120, 0.45);
+  text-shadow: 0 0 4px rgba(150, 210, 255, 0.8);
+}
