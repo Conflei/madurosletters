@@ -646,7 +646,8 @@ a.btn {
   gap: 6px;
 }
 
-.ranking li {
+.ranking li,
+.ranking-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -656,6 +657,27 @@ a.btn {
   background: #fdf8e6;
   font-size: 13px;
   color: #2b2620;
+}
+
+.ranking li:has(.ranking-item) {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.ranking-item {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ranking-item:hover {
+  background: #fff3c4;
+}
+
+.ranking-item:active {
+  transform: translateY(1px);
 }
 
 .ranking p {
@@ -837,4 +859,8 @@ a.btn {
 
 .medal-4 {
   background: #6b7480;
+}
+
+.mood-cost.is-rank {
+  color: #3a6f8f;
 }

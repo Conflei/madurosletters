@@ -1,5 +1,5 @@
 import { CUSTODY_START, FACILITY, FACILITY_LOCATION, INMATE_FULL_NAME, INMATE_NAME, INMATE_NUMBER, TIME_ZONE, VERSION } from '../config';
-import { ApiError, myVote, receivedCount, submitLetter, topLetters, vote, type VoteValue } from '../api';
+import { ApiError, myVote, receivedCount, submitLetter, topLetters, vote, type TopLetter, type VoteValue } from '../api';
 import type { Bounds } from '../engine/iso';
 import type { FloorLetter } from '../game/FloorLetters';
 import { avatarFrame } from '../game/avatar';
@@ -11,6 +11,8 @@ const DAY_MS = 86_400_000;
 const LETTER_MAX = 280;
 const INSTAGRAM = 'fxizrr';
 const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM}/`;
+
+type ReadableLetter = Pick<FloorLetter, 'id' | 'text' | 'from'>;
 
 const LETTER_MIN = 5;
 const RECEIVED_REFRESH_MS = 60_000;
@@ -92,7 +94,10 @@ export class Hud {
   private honeypot: HTMLInputElement;
   private writeOpenedAt = 0;
   private sending = false;
-  private reading: FloorLetter | null = null;
+  private reading: ReadableLetter | null = null;
+  /** The read window was opened from the ranking, so its main button goes back there. */
+  private readFromRanking = false;
+  private ranked: TopLetter[] = [];
   private voteBtns: HTMLButtonElement[] = [];
   private readWin: HTMLElement;
   private infoWin: HTMLElement;
@@ -188,7 +193,7 @@ export class Hud {
               <button type="button" class="vote-btn" data-vote-dir="down" aria-label="Votar en contra" aria-pressed="false">${pixelIcon('arrowDown', 2)}</button>
             </div>
             <span class="mood-cost" data-cost></span>
-            <button type="button" class="btn" data-close>Cerrar</button>
+            <button type="button" class="btn" data-read-done>Cerrar</button>
           </div>
         </div>
       </section>
@@ -269,6 +274,14 @@ export class Hud {
       this.writeError.hidden = true;
       this.updateSendButton();
     });
+    query(this.readWin, '[data-read-done]').addEventListener('click', () => {
+      if (this.readFromRanking) this.openRanking();
+      else this.closeWindow(this.readWin);
+    });
+    query(this.rankWin, '[data-ranking-list]').addEventListener('click', (e) => {
+      const item = (e.target as HTMLElement).closest<HTMLElement>('[data-rank]');
+      if (item) this.openRanked(Number(item.dataset.rank));
+    });
     this.voteBtns = [...this.readWin.querySelectorAll<HTMLButtonElement>('[data-vote-dir]')];
     for (const btn of this.voteBtns) {
       btn.addEventListener('click', () => this.toggleVote(btn.dataset.voteDir === 'up' ? 1 : -1));
@@ -290,11 +303,25 @@ export class Hud {
   }
 
   /** Shows a letter picked up from the floor and how much humour it cost. */
-  openLetter(letter: FloorLetter, moodCost: number): void {
+  openLetter(letter: ReadableLetter, moodCost: number): void {
+    this.showLetter(letter, `Ánimo −${moodCost}`, false);
+  }
+
+  /** A letter from the weekly ranking, read in full. Costs no Ánimo: it isn't picked up from the floor. */
+  private openRanked(index: number): void {
+    const l = this.ranked[index];
+    if (!l) return;
+    this.showLetter({ id: l.id, text: l.body, from: 'Remitente desconocido' }, `#${index + 1} de la semana`, true);
+  }
+
+  private showLetter(letter: ReadableLetter, note: string, fromRanking: boolean): void {
     this.reading = letter;
+    this.readFromRanking = fromRanking;
     query(this.readWin, '[data-letter-text]').textContent = letter.text;
     query(this.readWin, '[data-letter-from]').textContent = `— ${letter.from}`;
-    this.setReadNote(`Ánimo −${moodCost}`);
+    query(this.readWin, '[data-read-done]').textContent = fromRanking ? 'Volver' : 'Cerrar';
+    this.setReadNote(note);
+    query(this.readWin, '[data-cost]').classList.toggle('is-rank', fromRanking);
     query(this.readWin, '[data-vote]').hidden = !letter.id;
     this.showVote(letter.id ? myVote(letter.id) : 0);
     this.showWindow(this.readWin);
@@ -310,11 +337,12 @@ export class Hud {
     this.showWindow(this.rankWin);
     topLetters()
       .then((letters) => {
+        this.ranked = letters;
         list.innerHTML = letters.length
           ? letters
               .map(
                 (l, i) =>
-                  `<li><span class="medal medal-${Math.min(i + 1, 4)}">${i + 1}</span><p>${escapeHtml(l.body)}</p><b class="score">▲ ${l.score}</b></li>`,
+                  `<li><button type="button" class="ranking-item" data-rank="${i}" aria-label="Leer la carta ${i + 1}"><span class="medal medal-${Math.min(i + 1, 4)}">${i + 1}</span><p>${escapeHtml(l.body)}</p><b class="score">▲ ${l.score}</b></button></li>`,
               )
               .join('')
           : '<li class="ranking-empty">Todavía no hay cartas votadas esta semana.</li>';
