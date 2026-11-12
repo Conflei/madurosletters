@@ -402,6 +402,7 @@ export class Hud {
     const el = query(this.readWin, '[data-cost]');
     el.textContent = text;
     el.classList.toggle('is-error', error);
+    if (error) el.classList.remove('is-rank');
   }
 
   /** Optimistic: shows the vote right away and rolls back if the backend refuses it. */
