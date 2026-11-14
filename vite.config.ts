@@ -14,7 +14,7 @@ const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>${SITE_URL}</loc>
-    <changefreq>weekly</changefreq>
+    <changefreq>daily</changefreq>
   </url>
 </urlset>
 `;
@@ -32,7 +32,7 @@ const LLMS = `# Las cartas de Maduro
 - El jugador ve a Maduro en su celda, puede tocarlo y usar la cama, el lavabo, el banco y el inodoro.
 - Con el botón «Escribir» redacta una carta de hasta 280 caracteres.
 - Cada carta se revisa a mano antes de publicarse. Las cartas aprobadas aparecen en el suelo de la celda, donde otros jugadores pueden leerlas y votarlas a favor o en contra.
-- El cartel del podio muestra las cartas más votadas de la semana.
+- El cartel del podio muestra las cartas más votadas del día.
 - Las cartas se imprimen y se envían físicamente a la prisión por el creador del juego.
 `;
 

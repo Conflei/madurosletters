@@ -173,7 +173,7 @@ async function castVote(req: Request): Promise<Response> {
 }
 
 async function topLetters(req: Request): Promise<Response> {
-  const { data, error } = await supabase.rpc('top_letters_week', { max_results: 10 });
+  const { data, error } = await supabase.rpc('top_letters_day', { max_results: 10 });
   if (error) throw error;
   return json(req, 200, { letters: data ?? [] });
 }

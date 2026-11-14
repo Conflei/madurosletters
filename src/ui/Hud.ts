@@ -228,7 +228,7 @@ export class Hud {
           <button type="button" class="close-btn" data-close aria-label="Cerrar">×</button>
         </header>
         <div class="window-body">
-          <p class="ranking-intro">Estas son las cartas más votadas de esta semana.</p>
+          <p class="ranking-intro">Estas son las cartas más votadas de hoy.</p>
           <ol class="ranking" data-ranking-list></ol>
         </div>
       </section>
@@ -313,11 +313,11 @@ export class Hud {
     this.showLetter(letter, `Ánimo −${moodCost}`, false);
   }
 
-  /** A letter from the weekly ranking, read in full. Costs no Ánimo: it isn't picked up from the floor. */
+  /** A letter from the daily ranking, read in full. Costs no Ánimo: it isn't picked up from the floor. */
   private openRanked(index: number): void {
     const l = this.ranked[index];
     if (!l) return;
-    this.showLetter({ id: l.id, text: l.body, from: 'Remitente desconocido' }, `#${index + 1} de la semana`, true);
+    this.showLetter({ id: l.id, text: l.body, from: 'Remitente desconocido' }, `#${index + 1} de hoy`, true);
   }
 
   private showLetter(letter: ReadableLetter, note: string, fromRanking: boolean): void {
@@ -351,7 +351,7 @@ export class Hud {
                   `<li><button type="button" class="ranking-item" data-rank="${i}" aria-label="Leer la carta ${i + 1}"><span class="medal medal-${Math.min(i + 1, 4)}">${i + 1}</span><p>${escapeHtml(l.body)}</p><b class="score">▲ ${l.score}</b></button></li>`,
               )
               .join('')
-          : '<li class="ranking-empty">Todavía no hay cartas votadas esta semana.</li>';
+          : '<li class="ranking-empty">Todavía no hay cartas votadas hoy.</li>';
       })
       .catch((err) => {
         list.innerHTML = `<li class="ranking-empty">${escapeHtml(err instanceof ApiError ? err.message : 'No se pudo cargar el ranking.')}</li>`;
