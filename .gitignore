@@ -6,3 +6,4 @@ dist
 
 # Generated print sheets
 prints/
+__pycache__/
